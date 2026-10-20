@@ -1,3 +1,2 @@
-# Local test data: captures (GBs), logs with IP addresses, decompiled game source. Kept on disk, never committed.
 data/*
 !data/README.md
