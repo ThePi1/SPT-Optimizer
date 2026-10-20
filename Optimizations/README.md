@@ -136,7 +136,31 @@ Two switches under *Trade-offs (visible)*. Both are the idea of the [Simple-Decl
 | Corpse ragdoll cap | visual | ≈0: corpses settle in 0.02–2.1 s | — | dropped |
 | Declutter small objects / medium objects | visual | ~0 ms frame time; −2% / −7% draws, medium −0.25 ms render thread | litter, debris, casings, puddles, mesh decals / boxes and bags become invisible (still solid) | options, off |
 | Small-prop screen-size culling | visual | est. ≤0.1 ms (only ~20k enabled renderers remain beyond 200 m, ~40 visible) | tiny far props | not built |
-| FIKA headless client | setup | est. +15–25% FPS | separate install and a second process | see FINDINGS |
+| FIKA headless client | setup | measured −1.4 to −2.0 ms (+18–29% FPS), 1% lows 61 → 86 fps | a second PC (or 64 GB on one PC) running the headless host | see FINDINGS 2026-10-20 |
+
+## Multiplayer (Fika)
+
+Fika splits the raid between machines:
+- **Host or headless:** runs bot AI, bot movement and spawning, grenade and loot physics, and approves inventory changes.
+- **Each client:** simulates only its own player. Every bot and every other human appears on the client as a network-driven *observed player*, which is animated and rendered locally.
+- **Hit authority:** each shooter's machine decides whether its shots hit. A bot's bullet hitting a player is decided on that player's machine. So anything that changes what is solid or where a visible body is posed changes hits.
+
+| Feature | Matters on | Multiplayer-safe? |
+| --- | --- | --- |
+| GC policy | every machine | yes: memory management only |
+| Shadow proxy culling, faded light culling | clients (rendering) | yes: visual only, no colliders |
+| Declutter small objects | clients | yes: renderers only |
+| Declutter medium objects | clients | visually unequal: the objects stay solid for everyone, but you can't see them |
+| Batched overlaps | the machine moving the characters: the host for bots, each client for its own player | yes: same query results (validated with 0 misses) |
+| Runaway move guard | the host or headless (the BTR gunner is a host-side bot) | yes |
+| Bot IK distance | clients | yes, visual only. Fika 2.4.4+ sets the same value (`CULL_GROUNDER`) through *IK Cull Distance*, so use only one |
+| Half-rate bot animation (parked) | clients | only for off-screen bots, never for humans. A stale pose changes your own hit results |
+
+**Installing:**
+- Fika checks each plugin's GUID and a CRC32C hash of its DLL against the server's lists.
+- With empty *required* and *optional* lists (the default), every mod is allowed. If the lists are in use, add `com.sptoptimizer.optimizations` (and `com.sptoptimizer.profiler`) to *optional*.
+- Every machine must run the identical build, or the hash check fails.
+- The headless host benefits from the GC policy, batched overlaps and the runaway guard. The Fika wiki advises against declutter-type mods on the headless; they'd do nothing there anyway, because it barely renders.
 
 ## Diagnostics
 
