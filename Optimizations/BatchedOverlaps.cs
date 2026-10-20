@@ -15,12 +15,12 @@ namespace SPTOptimizer.Optimizations
     /// validated against the original query, ~0.2 ms of LateUpdate on Streets with ~22 bots).
     ///
     /// Every player's move goes through EFT's SimpleCharacterController.Move, which for each movement sub-step calls
-    /// method_7 → Physics.OverlapSphereNonAlloc (one capsule, ~14 µs per query on Streets, ~1.8 ms/frame total)
+    /// UpdateNeighboursColliders → Physics.OverlapSphereNonAlloc (one capsule, ~14 µs per query on Streets, ~1.8 ms/frame total)
     /// on the main thread, one player after another. All players' motions for the frame are known before the first
     /// one is applied (MovementState schedules them in Update; MovementContext.AnimatorStatesLateUpdate applies them
     /// in LateUpdate). So at the first AnimatorStatesLateUpdate of a frame this issues one OverlapSphereCommand per
     /// player collider, covering its whole move path (start → start+motion, plus a margin), as a single batch on the
-    /// job worker threads. method_7 then uses that result when its own query sphere lies inside the batched one.
+    /// job worker threads. UpdateNeighboursColliders then uses that result when its own query sphere lies inside the batched one.
     ///
     /// The batched sphere is a superset of every sub-step sphere it serves. Extra colliders are harmless: the
     /// controller runs Physics.ComputePenetration on each neighbour and ignores the ones that don't overlap. Result
@@ -35,7 +35,7 @@ namespace SPTOptimizer.Optimizations
         public float Margin = 0.15f;
         public bool Validate;
 
-        private const int MaxHits = 64; // = SimpleCharacterController.GClass755 capacity
+        private const int MaxHits = 64; // = SimpleCharacterController.CollidersArray capacity
 
         private static readonly AccessTools.FieldRef<SimpleCharacterController, Transform> MovementTransform =
             AccessTools.FieldRefAccess<SimpleCharacterController, Transform>("_movementTransform");
@@ -85,7 +85,7 @@ namespace SPTOptimizer.Optimizations
         {
             harmony.Patch(AccessTools.Method(typeof(MovementContext), nameof(MovementContext.AnimatorStatesLateUpdate)),
                 prefix: new HarmonyMethod(typeof(BatchedOverlaps), nameof(AnimatorStatesLateUpdatePrefix)));
-            harmony.Patch(AccessTools.Method(typeof(SimpleCharacterController), nameof(SimpleCharacterController.method_7)),
+            harmony.Patch(AccessTools.Method(typeof(SimpleCharacterController), nameof(SimpleCharacterController.UpdateNeighboursColliders)),
                 prefix: new HarmonyMethod(typeof(BatchedOverlaps), nameof(Method7Prefix)));
             harmony.Patch(AccessTools.Method(typeof(SimpleCharacterController), nameof(SimpleCharacterController.Move)),
                 prefix: new HarmonyMethod(typeof(BatchedOverlaps), nameof(MovePrefix)));
@@ -109,7 +109,7 @@ namespace SPTOptimizer.Optimizations
             self.PrePass();
         }
 
-        private static bool Method7Prefix(SimpleCharacterController __instance, Collider collider, SimpleCharacterController.GClass755 neighboursColliders, Vector3 desiredPoint)
+        private static bool Method7Prefix(SimpleCharacterController __instance, Collider collider, SimpleCharacterController.CollidersArray neighboursColliders, Vector3 desiredPoint)
         {
             var self = Instance;
             if (self == null) return true;
@@ -137,12 +137,12 @@ namespace SPTOptimizer.Optimizations
                 var player = players[p];
                 if (player == null) continue;
                 var mc = player.MovementContext;
-                if (mc == null || !mc.ScheduleDirectApplyMotion) continue;
+                if (mc == null || !mc._scheduleDirectApplyMotion) continue;
                 var cc = player.CharacterController as SimpleCharacterController;
                 if (cc == null || cc.IsMoveIgnored) continue;
 
                 // Same motion DirectApplyMotion hands to Move (Flash is a no-op in this build).
-                Vector3 motion = mc.ScheduledMotion + mc.PlatformMotion;
+                Vector3 motion = mc._scheduledMotion + mc.PlatformMotion;
                 float mag = motion.magnitude;
                 if (mag <= 0f) continue;
                 if (mag > 1f) _bigMoves++;
@@ -166,7 +166,7 @@ namespace SPTOptimizer.Optimizations
                     Bounds b = col.bounds;
                     Vector3 ext = b.extents;
                     float r = Mathf.Max(Mathf.Max(ext.x, ext.y), ext.z) + halo;
-                    Vector3 center = b.center + motion * 0.5f;  // b.center - start is the per-step offset method_7 adds
+                    Vector3 center = b.center + motion * 0.5f;  // b.center - start is the per-step offset UpdateNeighboursColliders adds
                     float radius = r + mag * 0.5f + Margin;
                     EnsureCapacity(n + 1);
                     _commands[n] = new OverlapSphereCommand(center, radius, new QueryParameters(mask, false, QueryTriggerInteraction.Ignore, false));
@@ -185,7 +185,7 @@ namespace SPTOptimizer.Optimizations
             _prepassTicks += Stopwatch.GetTimestamp() - t0;
         }
 
-        private bool TryServe(SimpleCharacterController cc, Collider collider, SimpleCharacterController.GClass755 neighbours, Vector3 desiredPoint)
+        private bool TryServe(SimpleCharacterController cc, Collider collider, SimpleCharacterController.CollidersArray neighbours, Vector3 desiredPoint)
         {
             if (_frame != Time.frameCount || !_entryByCollider.TryGetValue(collider.GetInstanceID(), out int idx))
             {
@@ -193,7 +193,7 @@ namespace SPTOptimizer.Optimizations
                 return false;
             }
 
-            // Exactly the query method_7 would run.
+            // Exactly the query UpdateNeighboursColliders would run.
             Bounds b = collider.bounds;
             Vector3 position = desiredPoint + (b.center - collider.transform.position);
             Vector3 ext = b.extents;
@@ -238,7 +238,7 @@ namespace SPTOptimizer.Optimizations
         }
 
         /// <summary>Validation: run the original query and make sure the served set contains every collider it finds.</summary>
-        private void Check(SimpleCharacterController cc, Collider self, Vector3 position, float radius, SimpleCharacterController.GClass755 served)
+        private void Check(SimpleCharacterController cc, Collider self, Vector3 position, float radius, SimpleCharacterController.CollidersArray served)
         {
             int n = Physics.OverlapSphereNonAlloc(position, radius, _scratch, CollisionMask(cc), QueryTriggerInteraction.Ignore);
             _validated++;

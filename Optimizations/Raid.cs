@@ -19,7 +19,7 @@ namespace SPTOptimizer.Optimizations
         /// <summary>The screen on top of the UI stack; None/BattleUI mean the player is looking at the game.</summary>
         public static EEftScreenType CurrentScreen()
         {
-            var controller = CurrentScreenSingletonClass.Instance.CurrentScreenController;
+            var controller = EFT.UI.Screens.EftScreenManager.Instance.CurrentScreenController;
             return controller != null ? controller.ScreenType : EEftScreenType.None;
         }
     }

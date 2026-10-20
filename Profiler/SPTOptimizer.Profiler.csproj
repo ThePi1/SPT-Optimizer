@@ -5,10 +5,10 @@
     <RootNamespace>SPTOptimizer.Profiler</RootNamespace>
     <AssemblyName>SPTOptimizer.Profiler</AssemblyName>
     <LangVersion>latest</LangVersion>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <!-- Game install to compile against and deploy to, override with: dotnet build -p:SptDir=... -->
-    <SptDir Condition="'$(SptDir)' == ''">I:\Games\spt-4-0-13-hideoutroulette</SptDir>
+    <SptDir Condition="'$(SptDir)' == ''">I:\Games\SPT-4-1-6-testing</SptDir>
     <Managed>$(SptDir)\EscapeFromTarkov_Data\Managed</Managed>
     <!-- Copy the built dll into BepInEx\plugins after each build. Disable with -p:Deploy=false -->
     <Deploy Condition="'$(Deploy)' == ''">true</Deploy>

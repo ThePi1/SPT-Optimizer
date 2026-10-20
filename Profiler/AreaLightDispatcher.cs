@@ -5,10 +5,10 @@ using UnityEngine;
 namespace SPTOptimizer.Profiler
 {
     /// <summary>
-    /// Every enabled AreaLight subscribes its own AreaLight.method_2 to Camera.onPreCull (~1,170 delegates on
+    /// Every enabled AreaLight subscribes its own AreaLight.PreCull to Camera.onPreCull (~1,170 delegates on
     /// Streets). For each camera each one checks its intensity, calls CompareTag twice (native calls), and the lit
     /// ones rebuild their command buffer. This replaces all of them with one delegate that checks the camera tag
-    /// once and then does exactly what method_2 does for each light, in the same order. Output is identical.
+    /// once and then does exactly what PreCull does for each light, in the same order. Output is identical.
     /// </summary>
     internal static class AreaLightDispatcher
     {
@@ -24,7 +24,7 @@ namespace SPTOptimizer.Profiler
             foreach (var light in Object.FindObjectsOfType<AreaLight>())
             {
                 if (!light.isActiveAndEnabled) continue;
-                Camera.onPreCull -= light.method_2; // removes the light's own subscription (delegate equality by target+method)
+                Camera.onPreCull -= light.PreCull; // removes the light's own subscription (delegate equality by target+method)
                 Lights.Add(light);
             }
             Camera.onPreCull += Dispatch;
@@ -44,7 +44,7 @@ namespace SPTOptimizer.Profiler
                 if (current != null)
                     foreach (var d in current)
                         if (ReferenceEquals(d.Target, light)) { subscribed = true; break; }
-                if (!subscribed) Camera.onPreCull += light.method_2;
+                if (!subscribed) Camera.onPreCull += light.PreCull;
             }
             Lights.Clear();
             _installed = false;
@@ -60,7 +60,7 @@ namespace SPTOptimizer.Profiler
         private static void OnEnablePostfix(AreaLight __instance)
         {
             if (!_installed) return;
-            Camera.onPreCull -= __instance.method_2; // it just subscribed itself
+            Camera.onPreCull -= __instance.PreCull; // it just subscribed itself
             if (!Lights.Contains(__instance)) Lights.Add(__instance);
         }
 
@@ -75,9 +75,9 @@ namespace SPTOptimizer.Profiler
             for (int i = 0; i < Lights.Count; i++)
             {
                 var light = Lights[i];
-                // Same conditions as AreaLight.method_2 (minus the tag check done once above). Enable/disable is
+                // Same conditions as AreaLight.PreCull (minus the tag check done once above). Enable/disable is
                 // tracked by the OnEnable/OnDisable postfixes below, so no per-frame isActiveAndEnabled native call.
-                if (light.m_Intensity <= 0f || !light.method_0()) continue;
+                if (light.m_Intensity <= 0f || !light.Init()) continue;
                 light.SetUpCommandBuffer(cam);
             }
         }

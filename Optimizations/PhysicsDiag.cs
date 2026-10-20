@@ -9,8 +9,8 @@ namespace SPTOptimizer.Optimizations
     /// <summary>
     /// DIAGNOSTIC (batch 1): what keeps EFT's physics simulation running, and what it costs.
     ///
-    /// EFT runs Physics.Simulate (script mode, EFTPhysicsClass.SyncTransformsClass) only while at least one
-    /// "supported" rigidbody is active (EFTPhysicsClass.GClass745). Corpse ragdolls register for up to 15 s or until
+    /// EFT runs Physics.Simulate (script mode, PhysicsExtensions.Simulation) only while at least one
+    /// "supported" rigidbody is active (PhysicsExtensions.UpdateController). Corpse ragdolls register for up to 15 s or until
     /// asleep; dropped loot, grenades, the BTR's wheels and suspension register too. This logs, every 30 s:
     ///  - physics.simFrames / simMs / simMaxMs: frames that simulated and their cost
     ///  - physics.vehicleOnlyFrames: simulated frames where only vehicle bodies (BTR) were registered
@@ -27,8 +27,8 @@ namespace SPTOptimizer.Optimizations
 
         public static void Install(Harmony harmony, ManualLogSource log)
         {
-            var sim = typeof(EFTPhysicsClass.SyncTransformsClass);
-            foreach (var name in new[] { "smethod_0", "smethod_1" })
+            var sim = typeof(PhysicsExtensions.Simulation);
+            foreach (var name in new[] { "Simulate", "SmoothSimulate" })
                 harmony.Patch(AccessTools.Method(sim, name),
                     prefix: new HarmonyMethod(typeof(PhysicsDiag), nameof(SimPrefix)),
                     postfix: new HarmonyMethod(typeof(PhysicsDiag), nameof(SimPostfix)));
@@ -41,9 +41,9 @@ namespace SPTOptimizer.Optimizations
         private static void SimPrefix()
         {
             _t0 = 0;
-            if (!Enabled || !EFTPhysicsClass.SyncTransformsClass.Boolean_0) return;
+            if (!Enabled || !PhysicsExtensions.Simulation.CanRunSimulate) return;
             // Would skipping this step be safe? Only if every registered body is asleep (candidate idea).
-            var list = EFTPhysicsClass.GClass745.List_0;
+            var list = PhysicsExtensions.UpdateController._rigidbodies;
             bool all = list.Count > 0;
             for (int i = 0; i < list.Count && all; i++)
             {
@@ -79,7 +79,7 @@ namespace SPTOptimizer.Optimizations
         {
             if (!Enabled || Time.realtimeSinceStartup < _nextSample) return;
             _nextSample = Time.realtimeSinceStartup + 1f;
-            var list = EFTPhysicsClass.GClass745.List_0;
+            var list = PhysicsExtensions.UpdateController._rigidbodies;
             int corpse = 0, loot = 0, vehicle = 0, other = 0;
             for (int i = 0; i < list.Count; i++)
             {
@@ -103,7 +103,7 @@ namespace SPTOptimizer.Optimizations
             if (loot > 0) Stats.Max("physics.bodies.loot", loot);
             if (vehicle > 0) Stats.Max("physics.bodies.vehicle", vehicle);
             if (other > 0) Stats.Max("physics.bodies.other", other);
-            if (EFTPhysicsClass.SyncTransformsClass.UpdateEnabled) Stats.Add("physics.secondsOn");
+            if (PhysicsExtensions.Simulation.UpdateEnabled) Stats.Add("physics.secondsOn");
         }
     }
 }

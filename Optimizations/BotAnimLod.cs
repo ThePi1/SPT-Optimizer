@@ -195,8 +195,8 @@ namespace SPTOptimizer.Optimizations
         private static State Track(MovementContext mc)
         {
             var st = new State();
-            // EFT wraps the Unity Animator (GClass1446); the fast animator has none, in which case nothing is mapped.
-            if (mc.PlayerAnimator?.Animator is GClass1446 wrapper && wrapper.Animator != null)
+            // EFT wraps the Unity Animator (AnimationSystem.UnityAnimatorWrapper); the fast animator has none, in which case nothing is mapped.
+            if (mc.PlayerAnimator?.Animator is AnimationSystem.UnityAnimatorWrapper wrapper && wrapper.Animator != null)
                 ByAnimator[wrapper.Animator.GetInstanceID()] = st;
             return st;
         }

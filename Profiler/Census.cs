@@ -170,7 +170,7 @@ namespace SPTOptimizer.Profiler
             if (!Comfort.Common.Singleton<EFT.GameWorld>.Instantiated) { sb.AppendLine("  no game world"); return; }
             var gw = Comfort.Common.Singleton<EFT.GameWorld>.Instance;
             var hs = EFTHardSettings.Instance;
-            sb.AppendLine($"  CULL_GROUNDER (IK distance) {hs.CULL_GROUNDER} m, AnimatorCullDistance {hs.AnimatorCullDistance} m, CULLING_PLAYER_DISTANCE {hs.CULLING_PLAYER_DISTANCE} m, UseBodyFastAnimator {BackendConfigAbstractClass.Config?.UseBodyFastAnimator}");
+            sb.AppendLine($"  CULL_GROUNDER (IK distance) {hs.CULL_GROUNDER} m, AnimatorCullDistance {hs.AnimatorCullDistance} m, CULLING_PLAYER_DISTANCE {hs.CULLING_PLAYER_DISTANCE} m, UseBodyFastAnimator {AppEnvironment.Config?.UseBodyFastAnimator}");
             sb.AppendLine($"  {"who",-22} {"dist",6} {"onScr",5} {"forcedOff",9} {"body anim",-34} {"arms anim",-44} {"hands",-24} mask");
             var renderers = new List<Renderer>();
             foreach (var p in gw.AllAlivePlayersList.OrderBy(p => p == gw.MainPlayer ? -1f : p.Distance))

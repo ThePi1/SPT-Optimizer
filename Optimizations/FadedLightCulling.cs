@@ -56,8 +56,8 @@ namespace SPTOptimizer.Optimizations
             harmony.Patch(AccessTools.Method(typeof(LampController), nameof(LampController.TurnLights)),
                 prefix: new HarmonyMethod(typeof(FadedLightCulling), nameof(TurnLightsPrefix)),
                 postfix: new HarmonyMethod(typeof(FadedLightCulling), nameof(TurnLightsPostfix)));
-            // ControlledLampGroup.method_8 runs on events only, but always writes light.enabled.
-            harmony.Patch(AccessTools.Method(typeof(ControlledLampGroup), nameof(ControlledLampGroup.method_8)),
+            // ControlledLampGroup.SetLightState runs on events only, but always writes light.enabled.
+            harmony.Patch(AccessTools.Method(typeof(ControlledLampGroup), nameof(ControlledLampGroup.SetLightState)),
                 postfix: new HarmonyMethod(typeof(FadedLightCulling), nameof(LampGroupPostfix)));
         }
 

@@ -8,7 +8,7 @@ namespace SPTOptimizer.Optimizations
     /// <summary>
     /// VISIBLE TRADE-OFF (opt-in): object LOD bias below EFT's minimum of 2.
     ///
-    /// EFT applies its "Object LOD quality" setting (2–4) through GameGraphicsClass.smethod_9 → QualitySettings.lodBias;
+    /// EFT applies its "Object LOD quality" setting (2–4) through GraphicsSettingsController.ChangeLodBias → QualitySettings.lodBias;
     /// CameraLodBiasController scales it temporarily per camera (optics) and restores it. This substitutes the
     /// configured value in that one place, so the per-camera scaling keeps working on top of it.
     /// Measured on Streets (batch 2): bias 1 = −0.11 ms main thread, −0.37 ms render thread, −390 draw calls; mid-distance
@@ -22,7 +22,7 @@ namespace SPTOptimizer.Optimizations
         public static void Install(Harmony harmony, ManualLogSource log)
         {
             _log = log;
-            harmony.Patch(AccessTools.Method(typeof(GameGraphicsClass), nameof(GameGraphicsClass.smethod_9)),
+            harmony.Patch(AccessTools.Method(typeof(EFT.Settings.Graphics.GraphicsSettingsController), nameof(EFT.Settings.Graphics.GraphicsSettingsController.ChangeLodBias)),
                 prefix: new HarmonyMethod(typeof(LodBiasOverride), nameof(SetBiasPrefix)));
         }
 
@@ -49,7 +49,7 @@ namespace SPTOptimizer.Optimizations
         {
             try
             {
-                return Singleton<SharedGameSettingsClass>.Instantiated ? Singleton<SharedGameSettingsClass>.Instance.Graphics.Settings.LodBias.Value : 0f;
+                return Singleton<EFT.Settings.SettingsManager>.Instantiated ? Singleton<EFT.Settings.SettingsManager>.Instance.Graphics.Settings.LodBias.Value : 0f;
             }
             catch
             {

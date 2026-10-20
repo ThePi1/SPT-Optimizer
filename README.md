@@ -2,7 +2,7 @@
 
 Frame-time optimizations for Escape from Tarkov under SPT (single-player Tarkov) and Fika (co-op), shipped as BepInEx 5 / HarmonyX plugins. Every optimization can be toggled and is measured with an in-game A/B profiler before it's switched on by default.
 
-Developed against **EFT 0.16.9.40087 (Unity 2022.3.43f1, Mono, DX11), SPT 4.0.13, Fika 2.3.9**. Porting to SPT 4.1.6 / Fika 2.4.6 is next; see [PORTING.md](PORTING.md).
+Targets **SPT 4.1.6 / Fika 2.4.6 (EFT 0.16.9.40743, Unity 2022.3.43f1, Mono, DX11)**. The measurements in FINDINGS.md were taken on SPT 4.0.13 / Fika 2.3.9 (EFT 0.16.9.40087); [PORTING.md](PORTING.md) covers what changed.
 
 ## What's in here
 
@@ -48,7 +48,7 @@ dotnet build Optimizations -c Release
 dotnet build Profiler -c Release
 ```
 
-The game folder defaults to `I:\Games\spt-4-0-13-hideoutroulette`. Override it with `-p:SptDir=<path>`, and skip the copy with `-p:Deploy=false`. Build while the game is closed; a running game locks the DLLs.
+The game folder defaults to `I:\Games\SPT-4-1-6-testing`. Override it with `-p:SptDir=<path>`, and skip the copy with `-p:Deploy=false`. Build while the game is closed; a running game locks the DLLs.
 
 ## Using it with Fika
 

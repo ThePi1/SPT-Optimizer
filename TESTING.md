@@ -2,7 +2,18 @@
 
 How the measurements in [FINDINGS.md](FINDINGS.md) were taken, so new results stay comparable.
 
-## Test environment (SPT 4.0.13 install)
+## Current test install: SPT 4.1.6 (from 2026-10-20)
+
+| | |
+| --- | --- |
+| Install | `I:\Games\SPT-4-1-6-testing`: SPT 4.1.6, Fika 2.4.6 (server mod 2.4.2). The SPT server is in `SPT_Runtime\` (new 4.1 layout) |
+| Headless host | Server PC 192.168.4.53, `C:\Share\SPT-4-1-6-testing`. SPT 4.1's server needs the **.NET 10 runtime and the ASP.NET Core 10 runtime**; without them it exits silently and Fika's headless installer fails with "Fika Server config file was not found" |
+| Ports | SPT server 6969/TCP on all interfaces (Fika's `fika.jsonc` overrides `http.json`), Fika raid traffic 25565/UDP, NAT punch off |
+| Plugin compatibility | SPT 4.1's prepatcher refuses plugins compiled against older `spt-*.dll` versions ("Outdated Mods"), so third-party plugins need rebuilding against 4.1.6. DragonDen DevTool was ported: renames listed in `data\spt-4.1.6\third-party\DragonDenDevTool\rebuilt-spt4.1.6\port-to-spt-4.1.6.patch` |
+
+Data from this install goes in `data\spt-4.1.6\`. The rest of this section describes the archived 4.0.13 install, whose measurements fill FINDINGS.md.
+
+## Test environment (SPT 4.0.13 install, archived)
 
 | | |
 | --- | --- |

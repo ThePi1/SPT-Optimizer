@@ -12,7 +12,7 @@ using UnityEngine.Scripting;
 
 namespace SPTOptimizer.Profiler
 {
-    [BepInPlugin("com.sptoptimizer.profiler", "SPTOptimizer.Profiler", "0.1.0")]
+    [BepInPlugin("com.sptoptimizer.profiler", "SPTOptimizer.Profiler", "0.2.0")]
     [BepInDependency("com.sptoptimizer.optimizations", BepInDependency.DependencyFlags.SoftDependency)]
     public class Plugin : BaseUnityPlugin
     {

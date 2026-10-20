@@ -11,7 +11,7 @@ namespace SPTOptimizer.Profiler
 {
     /// <summary>
     /// Attributes single long work items, the usual cause of 10–40 ms hitches:
-    ///  - EFT's JobScheduler continuations (Diz.Jobs, run in JobScheduler.LateUpdate): Class1031.Execute
+    ///  - EFT's JobScheduler continuations (Diz.Jobs, run in JobScheduler.LateUpdate): Diz.Jobs.ExecuteConditionGeneral.Execute
     ///  - async/await continuations posted to Unity's SynchronizationContext (Update.ScriptRunDelayedTasks)
     ///  - coroutine steps (SetupCoroutine.InvokeMoveNext, Update.ScriptRunDelayedDynamicFrameRate etc.)
     /// Each item is timed only while a capture is recording; items slower than ThresholdMs are recorded with the
@@ -38,7 +38,7 @@ namespace SPTOptimizer.Profiler
         public static void Install(Harmony harmony, ManualLogSource log)
         {
             _log = log;
-            Try(harmony, AccessTools.Method(typeof(Class1031), nameof(Class1031.Execute)), nameof(JobPrefix), nameof(JobPostfix), "JobScheduler continuations");
+            Try(harmony, AccessTools.Method(typeof(Diz.Jobs.ExecuteConditionGeneral), nameof(Diz.Jobs.ExecuteConditionGeneral.Execute)), nameof(JobPrefix), nameof(JobPostfix), "JobScheduler continuations");
             Try(harmony, AccessTools.Method(AccessTools.TypeByName("UnityEngine.SetupCoroutine"), "InvokeMoveNext"), nameof(Prefix), nameof(CoroutinePostfix), "coroutine steps");
             Try(harmony, AccessTools.Method(AccessTools.TypeByName("UnityEngine.UnitySynchronizationContext+WorkRequest"), "Invoke"), nameof(Prefix), nameof(TaskPostfix), "async continuations");
         }
@@ -86,7 +86,7 @@ namespace SPTOptimizer.Profiler
             return _depth == 0 && ms >= ThresholdMs;
         }
 
-        private static void JobPostfix(ref Struct263 continuation, long __state)
+        private static void JobPostfix(ref Diz.Jobs.JobContinuation continuation, long __state)
         {
             if (!End(__state, out float ms)) return;
             string job = continuation.jobYield != null ? continuation.jobYield.Name + "/" + continuation.jobStageName : "(no job)";

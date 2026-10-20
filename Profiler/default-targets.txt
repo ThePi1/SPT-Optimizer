@@ -26,8 +26,8 @@
 EFT.GameWorld:DoWorldTick
 EFT.GameWorld:DoOtherWorldTick
 EFT.Player:ComplexUpdate
-BotsClass:UpdateByUnity
-AICoreControllerClass:Update
+BotsList:UpdateByUnity
+AICoreController:Update
 
 # Bot brain: BotOwner.UpdateManual and each subsystem it ticks (sensors, mover, memory, ...).
 @callees EFT.BotOwner:UpdateManual

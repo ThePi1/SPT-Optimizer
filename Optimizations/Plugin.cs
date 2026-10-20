@@ -75,7 +75,7 @@ namespace SPTOptimizer.Optimizations
         public static int DeclutterHidden => Optimizations.Declutter.HiddenObjects;
     }
 
-    [BepInPlugin("com.sptoptimizer.optimizations", "SPTOptimizer.Optimizations", "0.1.0")]
+    [BepInPlugin("com.sptoptimizer.optimizations", "SPTOptimizer.Optimizations", "0.2.0")]
     public class Plugin : BaseUnityPlugin
     {
         internal GcPolicy Gc;

@@ -16,7 +16,7 @@ namespace SPTOptimizer.Optimizations
     /// footsteps come from the "FootStep" curve. Measured on Streets: ~65 µs per off-screen bot, ~1.3 ms for 19 bots.
     /// The fast animator runs the body state machine in managed code (FastAnimatorProcessorClass), takes root
     /// motion from a precomputed RootMotionBlendTable, and stops the visual PlayableGraph while the player is
-    /// off-screen (GClass1340 culler).
+    /// off-screen (the fast-animator culler culler).
     ///
     /// The flag is read when player pool objects and players are created, so it is set once, right after
     /// TarkovApplication.ConfigureApplication builds the config, and changing it needs a game restart.
@@ -40,7 +40,7 @@ namespace SPTOptimizer.Optimizations
             _log = log;
             try
             {
-                var field = AccessTools.Field(typeof(ResourceKeyManagerAbstractClass), "BUNDLES_TO_PRELOAD");
+                var field = AccessTools.Field(typeof(EFT.InGameBundles), "BUNDLES_TO_PRELOAD");
                 var current = (string[])field.GetValue(null);
                 var merged = current.Concat(ExtraBundles.Where(b => !current.Contains(b))).ToArray();
                 field.SetValue(null, merged);
@@ -58,7 +58,7 @@ namespace SPTOptimizer.Optimizations
                 Status = "waiting for application config";
 
                 // If the application was configured before this plugin loaded, set the flag now (no players can exist yet).
-                if (BackendConfigAbstractClass.Config != null) Apply("plugin load");
+                if (AppEnvironment.Config != null) Apply("plugin load");
                 log.LogWarning($"Fast body animator (EXPERIMENTAL) installed: {ExtraBundles.Length} root-motion bundles added to preload ({merged.Length} total)");
             }
             catch (Exception ex)
@@ -75,7 +75,7 @@ namespace SPTOptimizer.Optimizations
 
         private static void Apply(string when)
         {
-            var config = BackendConfigAbstractClass.Config;
+            var config = AppEnvironment.Config;
             if (config == null) return;
             config.UseBodyFastAnimator = true;
             Status = "on";
@@ -90,7 +90,7 @@ namespace SPTOptimizer.Optimizations
             var groups = players.Where(p => p != null && p.BodyAnimatorCommon != null)
                 .GroupBy(p => p.BodyAnimatorCommon.GetType().Name)
                 .Select(g => $"{g.Key} x{g.Count()}");
-            _log.LogInfo($"Fast body animator: flag {BackendConfigAbstractClass.Config?.UseBodyFastAnimator}, body animators in raid: {string.Join(", ", groups)}");
+            _log.LogInfo($"Fast body animator: flag {AppEnvironment.Config?.UseBodyFastAnimator}, body animators in raid: {string.Join(", ", groups)}");
         }
     }
 }

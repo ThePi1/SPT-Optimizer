@@ -1,6 +1,31 @@
 # Porting to a new client (SPT 4.1.6 / Fika 2.4.6)
 
-SPT 4.1.x runs a newer EFT client (1.0 series) than 0.16.9. BSG's obfuscated names (`GClassNNNN`, `method_N`, `smethod_N`, `bool_N`) are regenerated with every client build, so every hook that uses one must be re-found. Patches against named methods usually survive, but their bodies may have changed, so re-check the behaviour they rely on.
+**Status (2026-10-20): ported.** Both plugins build against SPT 4.1.6 and are deployed to `I:\Games\SPT-4-1-6-testing`, but haven't been tested in game yet. The mapping is in [SPT 4.1.6 mapping](#spt-416-mapping-done) below.
+
+SPT 4.1.6 runs **EFT 0.16.9.5 build 40743**, still a 0.16.9 client on Unity 2022.3.43f1 (4.0.13 ran build 40087). It is *not* a 1.0-series client, so BSG's 1.0.4 player culling and 1.0.5 animation work are not in it. What changed most is naming: SPT 4.1's patched `Assembly-CSharp` uses readable names almost everywhere, with no top-level `GClassNNNN` types. Many SPT 4.0 remap names (`...Class`, `...AbstractClass`) are gone too. A decompile is in `I:\Games\SPT-4-1-6-testing\eft-decomp\`.
+
+The general rule still holds: re-find every hook that used an obfuscated or remapped name, and re-check the behaviour that patches against named methods rely on.
+
+## SPT 4.1.6 mapping (done)
+
+| Used by | SPT 4.0.13 (0.16.9.40087) | SPT 4.1.6 (0.16.9.40743) |
+| --- | --- | --- |
+| Batched overlaps | `SimpleCharacterController.method_7`, nested `GClass755` | `UpdateNeighboursColliders`, nested `CollidersArray` (same body; still called once per `SingleMove` sub-step) |
+| Batched overlaps | `MovementContext.ScheduleDirectApplyMotion`, `ScheduledMotion` | public fields `_scheduleDirectApplyMotion`, `_scheduledMotion` |
+| Half-rate animation | `GClass1446` | `AnimationSystem.UnityAnimatorWrapper` (`.Animator`) |
+| Faded light culling | `ControlledLampGroup.method_8` | `SetLightState` (same body). `LampController.bool_0` and `ControlledLampGroup._lights` are unchanged |
+| LOD bias override | `GameGraphicsClass.smethod_9` | `EFT.Settings.Graphics.GraphicsSettingsController.ChangeLodBias` (same `bias` parameter) |
+| LOD bias, profiler graphics steps | `SharedGameSettingsClass`, `GraphicsSettingsClass` | `EFT.Settings.SettingsManager`, `EFT.Settings.Graphics.GraphicsSettingsGroup` (all 11 setting field names unchanged) |
+| Physics diagnostics | `EFTPhysicsClass.SyncTransformsClass.smethod_0/1`, `.Boolean_0`, `.UpdateEnabled` | `PhysicsExtensions.Simulation.Simulate/SmoothSimulate`, `.CanRunSimulate`, `.UpdateEnabled` |
+| Physics diagnostics | `EFTPhysicsClass.GClass745.List_0` | `PhysicsExtensions.UpdateController._rigidbodies` (same `rigidbody` field) |
+| Raid state | `CurrentScreenSingletonClass` | `EFT.UI.Screens.EftScreenManager` |
+| Fast animator, census | `BackendConfigAbstractClass.Config` | `AppEnvironment.Config` |
+| Fast animator | `ResourceKeyManagerAbstractClass.BUNDLES_TO_PRELOAD` | `EFT.InGameBundles.BUNDLES_TO_PRELOAD` |
+| Profiler, AreaLight dispatch | `AreaLight.method_2`, `method_0` | `AreaLight.PreCull`, `Init` |
+| Profiler, slow-work logger | `Class1031.Execute`, `Struct263` | `Diz.Jobs.ExecuteConditionGeneral.Execute`, `Diz.Jobs.JobContinuation` |
+| Profiler targets | `BotsClass`, `AICoreControllerClass` | `BotsList`, `AICoreController` |
+
+Both `.csproj` files now default `SptDir` to `I:\Games\SPT-4-1-6-testing`. To build for the archived 4.0.13 install, check out commit `112ef6d` or earlier.
 
 ## Before porting: baseline the new client
 

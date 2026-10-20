@@ -72,7 +72,7 @@ namespace SPTOptimizer.Profiler
         };
 
         // Graphics experiments: (GraphicsSettingsClass field, value). Applied via IGameSetting.ObjectValue, which runs
-        // EFT's bindings (GameGraphicsClass / CameraClass), and restored the same way.
+        // EFT's bindings (GraphicsSettingsController / CameraClass), and restored the same way.
         private static readonly Dictionary<string, (string Field, object Value)[]> GfxChanges = new Dictionary<string, (string, object)[]>
         {
             ["GfxShadowsHigh"] = new (string, object)[] { ("ShadowsQuality", 2) },
@@ -136,7 +136,7 @@ namespace SPTOptimizer.Profiler
             (id != ShadowProxyCullingOff || CullingSwitch != null) && ((id != BatchedOverlaps && id != BatchedOverlapsOff) || OverlapsSwitch != null) &&
             (id != RunawayGuardOff || GuardSwitch != null) && ((id != FadedLightCulling && id != FadedLightCullingOff) || FadedLightsSwitch != null) && (id != BotAnimHalfRate || AnimLodSwitch != null) && (id != Declutter || DeclutterSwitch != null) && (id != DeclutterSolid || (DeclutterSwitch != null && DeclutterMediumSwitch != null)) &&
             (id != AllOptimizationsOff || (CullingSwitch != null && OverlapsSwitch != null && GuardSwitch != null)) &&
-            (!IsGfx(id) || Singleton<SharedGameSettingsClass>.Instantiated);
+            (!IsGfx(id) || Singleton<EFT.Settings.SettingsManager>.Instantiated);
 
         public static int ActiveId { get; private set; }
         public static float FarShadowsOnlyDistance = 100f;
@@ -582,11 +582,11 @@ namespace SPTOptimizer.Profiler
 
         private static void ApplyGfx(string name)
         {
-            var settings = Singleton<SharedGameSettingsClass>.Instance.Graphics.Settings;
+            var settings = Singleton<EFT.Settings.SettingsManager>.Instance.Graphics.Settings;
             var parts = new List<string>();
             foreach (var (field, value) in GfxChanges[name])
             {
-                var setting = (Bsg.GameSettings.IGameSetting)typeof(GraphicsSettingsClass).GetField(field).GetValue(settings);
+                var setting = (Bsg.GameSettings.IGameSetting)typeof(EFT.Settings.Graphics.GraphicsSettingsGroup).GetField(field).GetValue(settings);
                 object saved = setting.ObjectValue;
                 GfxSaved.Add((setting, saved));
                 setting.ObjectValue = value;
