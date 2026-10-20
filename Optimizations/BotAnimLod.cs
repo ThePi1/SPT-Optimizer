@@ -25,11 +25,18 @@ namespace SPTOptimizer.Optimizations
     /// evaluates anyway on a skip frame (a renderer of the bot was visible, e.g. in a shadow map), the next frame isn't
     /// scaled. On-screen bots are never touched. Footsteps follow the sign of the FootStep curve and still flip.
     /// Validation counters: average horizontal speed of qualifying bots with the feature on vs off (should match).
+    ///
+    /// The catch-up evaluation still delivers ~20% less root motion (a property of Unity's animator), so LOCAL bots
+    /// (self-hosted or the Fika host, where root motion moves them) run ~20-25% slower. Since 0.3.0 it therefore applies
+    /// by default only to observed bots on a Fika client: their position is written from the host's snapshots every
+    /// frame (ObservedPlayer.ManualStateUpdate), so root motion moves nothing and the shortfall is invisible.
+    /// <see cref="LocalBots"/> brings back the old behaviour. Never on the headless host.
     /// </summary>
     internal static class BotAnimLod
     {
         public static bool Enabled;
         public static bool Validate = true;
+        public static bool LocalBots; // also local AI bots (they move ~20-25% slower); default: Fika observed bots only
         public static float OffscreenDistance = 10f;
         public static float VisibleDistance = 80f; // unused since v2 (on-screen bots aren't culled by CullCompletely)
 
@@ -87,10 +94,16 @@ namespace SPTOptimizer.Optimizations
             harmony.Patch(AccessTools.Method(typeof(PlayerStateContainer), nameof(PlayerStateContainer.OnStateMove),
                     new[] { typeof(Animator), typeof(AnimatorStateInfo), typeof(int) }),
                 prefix: new HarmonyMethod(typeof(BotAnimLod), nameof(OnStateMovePrefix)));
+            // Fika's ObservedPlayer.LateUpdate replaces Player.LateUpdate without calling it, so MovementContext.
+            // AnimatorStatesLateUpdate never runs for observed players: undo our changes from there instead.
+            if (Fika.Present)
+                harmony.Patch(AccessTools.Method(Fika.ObservedPlayerType, "LateUpdate"),
+                    prefix: new HarmonyMethod(typeof(BotAnimLod), nameof(ObservedLateUpdatePrefix)));
         }
 
         private static bool Qualifies(Player p) =>
-            p != null && p.IsAI && p.HealthController.IsAlive && !p.IsVisible && p.Distance > OffscreenDistance;
+            p != null && p.HealthController.IsAlive && !p.IsVisible && p.Distance > OffscreenDistance &&
+            (Fika.IsObservedBot(p) || (LocalBots && p.IsAI)) && !Fika.IsHeadless;
 
         /// <summary>Runs inside the animator update (root motion callback): the animator was evaluated this frame.</summary>
         private static void OnStateMovePrefix(Animator animator)
@@ -205,7 +218,17 @@ namespace SPTOptimizer.Optimizations
         private static void LateUpdatePrefix(MovementContext __instance)
         {
             if (States.Count == 0) return;
-            var player = PlayerRef(__instance);
+            Restore(PlayerRef(__instance));
+        }
+
+        private static void ObservedLateUpdatePrefix(Player __instance)
+        {
+            if (States.Count == 0) return;
+            Restore(__instance);
+        }
+
+        private static void Restore(Player player)
+        {
             if (player == null || !States.TryGetValue(player.GetInstanceID(), out var s)) return;
             var body = player.BodyAnimatorCommon;
             if (body == null) return;

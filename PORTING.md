@@ -49,7 +49,7 @@ Both `.csproj` files now default `SptDir` to `I:\Games\SPT-4-1-6-testing`. To bu
 | `FastAnimator.cs` (experimental) | `GClass1340` | `TarkovApplication.ConfigureApplication`, `ResourceKeyManagerAbstractClass.BUNDLES_TO_PRELOAD` |
 | `Declutter.cs` | none hooked (the comment cites `StaticDeferredDecalRenderer.method_9`) | `LODGroup` scan; `StaticDeferredDecal` must stay untouched |
 | `ShadowProxyCulling.cs`, `GcPolicy.cs`, `Raid.cs` | — | Unity APIs, `GameWorld`, `HideoutGameWorld`, `CurrentScreenSingletonClass`, `EEftScreenType` |
-| `Plugin.cs` | — | `EFTHardSettings.CULL_GROUNDER` (bot IK distance). Fika 2.4.4+ also sets this through its *IK Cull Distance* setting, so the two settings now conflict. Pick one owner |
+| `Plugin.cs` | — | `EFTHardSettings.CULL_GROUNDER` (bot IK distance). Fika 2.4.4+ also sets this through its *IK Cull Distance* setting. **Resolved in 0.3.0:** our option was removed and Fika owns the value |
 
 ### Profiler plugin
 

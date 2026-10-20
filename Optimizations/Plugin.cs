@@ -54,6 +54,12 @@ namespace SPTOptimizer.Optimizations
             }
         }
 
+        public static bool ObservedArmsLod
+        {
+            get => Optimizations.ObservedArmsLod.Enabled;
+            set => Optimizations.ObservedArmsLod.Enabled = value;
+        }
+
         public static bool RunawayMoveGuard
         {
             get => Optimizations.RunawayMoveGuard.Enabled;
@@ -75,7 +81,7 @@ namespace SPTOptimizer.Optimizations
         public static int DeclutterHidden => Optimizations.Declutter.HiddenObjects;
     }
 
-    [BepInPlugin("com.sptoptimizer.optimizations", "SPTOptimizer.Optimizations", "0.2.0")]
+    [BepInPlugin("com.sptoptimizer.optimizations", "SPTOptimizer.Optimizations", "0.3.0")]
     public class Plugin : BaseUnityPlugin
     {
         internal GcPolicy Gc;
@@ -97,10 +103,14 @@ namespace SPTOptimizer.Optimizations
         private ConfigEntry<float> _guardMaxSpeed;
         private ConfigEntry<bool> _fadedLights;
         private ConfigEntry<float> _lodBias;
-        private ConfigEntry<float> _ikDistance;
         private ConfigEntry<bool> _animLod;
         private ConfigEntry<float> _animLodOffscreen;
-        private float _savedCullGrounder = -1f;
+        private ConfigEntry<bool> _animLodLocal;
+        private ConfigEntry<bool> _armsLod;
+        private ConfigEntry<bool> _armsLodHumans;
+        private ConfigEntry<int> _armsLodInterval;
+        private ConfigEntry<float> _armsLodNear;
+        private ConfigEntry<float> _armsLodFar;
         private ConfigEntry<bool> _physicsDiag;
         private ConfigEntry<bool> _declutterSmall;
         private ConfigEntry<bool> _declutterMedium;
@@ -175,12 +185,32 @@ namespace SPTOptimizer.Optimizations
             {
                 Logger.LogError("Faded light culling unavailable: " + ex);
             }
-            _ikDistance = Config.Bind("Trade-offs (visible)", "Bot IK distance", 0f,
-                new ConfigDescription("0 = game default (EFTHardSettings.CULL_GROUNDER, 90 m). Visible bots farther than this skip foot IK and procedural weapon animation. Measured: 20 m saved ~0.3-0.7 ms with 2-4 bots on screen at 20-90 m.",
-                    new AcceptableValueRange<float>(0f, 200f)));
+            // The bot IK distance option (EFTHardSettings.CULL_GROUNDER) was removed in 0.3.0: Fika 2.4.4+ owns that value
+            // through its "IK Cull Distance" setting, and re-applying ours on every config change silently undid Fika's.
             _animLod = Config.Bind("Trade-offs (gameplay)", "Distant bot animation at half rate", false,
-                "EXPERIMENTAL, NOT RECOMMENDED. Body animators of off-screen bots beyond the off-screen distance are skipped every other frame and catch up on the next. Saves ~0.7-1.1 ms on Streets, BUT Unity's animator delivers ~20% less root motion on the catch-up, so affected (off-screen) bots move ~20-25% slower. On-screen bots are never touched.");
+                "EXPERIMENTAL. Body animators of off-screen bots beyond the off-screen distance are skipped every other frame and catch up on the next (~0.7-1.1 ms on Streets self-hosted). Applies only to bots on a Fika client, whose position comes from the host, so they move normally. Never on the headless host. On-screen bots are never touched.");
             _animLodOffscreen = Config.Bind("Trade-offs (gameplay)", "Half rate: off-screen distance", 10f, "Off-screen bots farther than this (m) animate at half rate (EFT already stops writing their bones beyond 10 m).");
+            _animLodLocal = Config.Bind("Trade-offs (gameplay)", "Half rate: local bots too", false,
+                new ConfigDescription("NOT RECOMMENDED. Also apply half rate to bots simulated on this PC (no Fika, or you are the Fika host). Unity's animator delivers ~20% less root motion on the catch-up, so those bots move ~20-25% slower while off-screen.",
+                    null, new ConfigurationManagerAttributes { IsAdvanced = true }));
+            _armsLod = Config.Bind("Trade-offs (visible)", "Far players' arms at reduced rate", false,
+                "Fika clients only. The arms animator of bots that are off-screen, or on screen but far away, is evaluated every Nth frame and catches up in one step. Their shots come from the network, so hits and damage are unchanged; their weapon handling looks less smooth and its sounds can start up to N-1 frames late. Never while you aim down sights at them, never within the near distance, never on the headless host.");
+            _armsLodHumans = Config.Bind("Trade-offs (visible)", "Arms reduced rate: human players too", false,
+                "Also apply it to other human players, not only bots.");
+            _armsLodInterval = Config.Bind("Trade-offs (visible)", "Arms reduced rate: every N frames", 2,
+                new ConfigDescription("Evaluate the arms animator of qualifying players once every N frames.", new AcceptableValueRange<int>(1, 4)));
+            _armsLodNear = Config.Bind("Trade-offs (visible)", "Arms reduced rate: near distance", 25f,
+                "Players closer than this (m) always update at full rate.");
+            _armsLodFar = Config.Bind("Trade-offs (visible)", "Arms reduced rate: on-screen distance", 60f,
+                "On-screen players farther than this (m) update at the reduced rate. Keep it at or above Fika's IK Cull Distance (40).");
+            try
+            {
+                ObservedArmsLod.Install(new Harmony("com.sptoptimizer.optimizations.observedarmslod"), Logger);
+            }
+            catch (System.Exception ex)
+            {
+                Logger.LogError("Observed arms reduced rate unavailable: " + ex);
+            }
             try
             {
                 BotAnimLod.Install(new Harmony("com.sptoptimizer.optimizations.botanimlod"), Logger);
@@ -240,7 +270,12 @@ namespace SPTOptimizer.Optimizations
             LodBiasOverride.Value = _lodBias.Value;
             Api.BotAnimLod = _animLod.Value;
             BotAnimLod.OffscreenDistance = _animLodOffscreen.Value;
-            ApplyIkDistance();
+            BotAnimLod.LocalBots = _animLodLocal.Value;
+            ObservedArmsLod.Enabled = _armsLod.Value;
+            ObservedArmsLod.IncludeHumans = _armsLodHumans.Value;
+            ObservedArmsLod.Interval = _armsLodInterval.Value;
+            ObservedArmsLod.NearDistance = _armsLodNear.Value;
+            ObservedArmsLod.FarDistance = _armsLodFar.Value;
             // Faded light culling sweeps the scene when switched on; in a raid only (the raid hook sweeps otherwise).
             if (!_fadedLights.Value || Raid.InRaid(out _)) FadedLightCulling.Enabled = _fadedLights.Value;
             RunawayMoveGuard.MaxSpeed = _guardMaxSpeed.Value;
@@ -255,16 +290,6 @@ namespace SPTOptimizer.Optimizations
             }
         }
 
-        /// <summary>EFTHardSettings is an asset: remember the game's value once and restore it when the option is 0.</summary>
-        private void ApplyIkDistance()
-        {
-            var hs = EFTHardSettings.Instance;
-            if (hs == null) return;
-            if (_savedCullGrounder < 0f) _savedCullGrounder = hs.CULL_GROUNDER;
-            float want = _ikDistance.Value > 0f ? _ikDistance.Value : _savedCullGrounder;
-            if (!Mathf.Approximately(hs.CULL_GROUNDER, want)) hs.CULL_GROUNDER = want;
-        }
-
         private void Update()
         {
             Gc.Tick();
@@ -272,6 +297,7 @@ namespace SPTOptimizer.Optimizations
             Overlaps?.Tick();
             FadedLightCulling.Tick();
             BotAnimLod.Tick();
+            ObservedArmsLod.Tick();
             Declutter.Tick();
             Stats.Tick(Logger);
 
@@ -280,7 +306,6 @@ namespace SPTOptimizer.Optimizations
             {
                 if (_raidSeenAt < 0f) _raidSeenAt = Time.realtimeSinceStartup;
                 PhysicsDiag.Tick();
-                if (_ikDistance.Value > 0f && Time.frameCount % 120 == 0) ApplyIkDistance();
                 // Lamps settle their fade values within a few seconds of spawning; sweep after that.
                 if (!_raidLightsSwept && Time.realtimeSinceStartup - _raidSeenAt > 5f)
                 {
@@ -296,7 +321,12 @@ namespace SPTOptimizer.Optimizations
             }
             else
             {
-                if (_raidSeenAt >= 0f) BotAnimLod.ReleaseAll(); // raid over: drop per-bot state
+                if (_raidSeenAt >= 0f)
+                {
+                    // raid over: drop per-player state
+                    BotAnimLod.ReleaseAll();
+                    ObservedArmsLod.ReleaseAll();
+                }
                 _raidSeenAt = -1f;
                 _raidStateLogged = _raidLightsSwept = false;
             }

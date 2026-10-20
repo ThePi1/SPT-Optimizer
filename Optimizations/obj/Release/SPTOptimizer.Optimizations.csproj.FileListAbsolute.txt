@@ -8,3 +8,4 @@ C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\bin\Release\SPT
 C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\bin\Release\SPTOptimizer.Optimizations.pdb
 C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\obj\Release\SPTOptimizer.Optimizations.dll
 C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\obj\Release\SPTOptimizer.Optimizations.pdb
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\obj\Release\SPTOptimizer.Optimizations.sourcelink.json

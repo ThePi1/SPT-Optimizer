@@ -9,3 +9,4 @@ C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\bin\Release\SPTOptim
 C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\bin\Release\SPTOptimizer.Profiler.pdb
 C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\obj\Release\SPTOptimizer.Profiler.dll
 C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\obj\Release\SPTOptimizer.Profiler.pdb
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\obj\Release\SPTOptimizer.Profiler.sourcelink.json

@@ -7,7 +7,7 @@
   "targets": {
     ".NETStandard,Version=v2.1": {},
     ".NETStandard,Version=v2.1/": {
-      "SPTOptimizer.Optimizations/0.1.0": {
+      "SPTOptimizer.Optimizations/0.3.0": {
         "runtime": {
           "SPTOptimizer.Optimizations.dll": {}
         }
@@ -15,7 +15,7 @@
     }
   },
   "libraries": {
-    "SPTOptimizer.Optimizations/0.1.0": {
+    "SPTOptimizer.Optimizations/0.3.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

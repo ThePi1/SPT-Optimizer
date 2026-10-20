@@ -86,8 +86,23 @@ The flag is set by a Harmony postfix on `TarkovApplication.ConfigureApplication`
 - **Visible cost:** the screenshot check shows a real change on 1.9% of pixels. Mid-distance trees thin out and small debris ~40–60 m away disappears.
 - Only worth it if you're render-thread or GPU bound.
 
-### Bot IK distance
-*Trade-offs (visible) → Bot IK distance*: 0 (default) keeps the game's 90 m (`EFTHardSettings.CULL_GROUNDER`). Visible bots farther than the set distance skip foot IK and procedural weapon animation, which shows as stiffer feet and weapon poses at distance. Measured earlier: 20 m saved 0.3–0.7 ms with 2–4 bots on screen at 20–90 m.
+### Bot IK distance (removed in 0.3.0)
+Fika 2.4.4+ owns this value (`EFTHardSettings.CULL_GROUNDER`) through its own *IK Cull Distance* setting (default 40 m), and also updates IK only every third frame. Our option re-applied its own value, or the game's 90 m when set to 0, on every config change, which silently undid Fika's setting. Use Fika's setting instead. Measured on 4.0.13: 20 m saved 0.3–0.7 ms with 2–4 bots on screen at 20–90 m.
+
+### Far players' arms at reduced rate (off by default, Fika clients only)
+*Trade-offs (visible) → Far players' arms at reduced rate*.
+
+**Problem.** Fika creates every observed player (on a client: every bot and every other human) with a manually updated arms animator, so `Player.ArmsUpdate` evaluates it every frame for each of them. On the 4.0.13 headless client that was ~0.47 ms for ~19 players, the largest single script cost left. (The weapon late transforms the research report pointed at cost only ~0.002 ms per frame in the 4.1.6 profile.)
+
+**Change.** For qualifying players the arms animator is evaluated every Nth frame (*every N frames*, default 2) and then advanced by all the time it missed. Unity fires all the animation events of that time in the one evaluation, so none are lost; they arrive up to N−1 frames late. The hands controller's own update and `ArmsLateUpdate` (event dispatch, ballistics) still run every frame. Players are staggered across frames.
+
+**Qualifies:** an observed bot (or human, with *human players too*), alive, farther than the *near distance* (25 m), and off-screen or farther than the *on-screen distance* (60 m). Never while you aim down sights at an on-screen player. Never on the headless host. Keep the on-screen distance at or above Fika's IK Cull Distance, so on-screen players that still get IK aren't throttled.
+
+**Why it is multiplayer-safe:** an observed player's shots are replayed from the shooter's packets, not produced by this animator, and the bones you shoot at come from the body animator, which this doesn't touch.
+
+**Visible effect:** distant players' weapon handling (reloads, weapon switches) looks less smooth; its sounds can start a frame late.
+
+**Counters:** `observedArmsLod.skippedUpdates`, `observedArmsLod.catchUpUpdates` in the `Stats:` line. **Measure:** profiler step `ObservedArmsReducedRate`.
 
 ### Declutter small / medium objects (both off by default; a cleaner look, not a speed-up)
 Two switches under *Trade-offs (visible)*. Both are the idea of the [Simple-Declutter](https://github.com/gitTerebi/Simple-Declutter) mod (3.11 only, no license), reimplemented for 4.0.13 with stricter rules:
@@ -108,8 +123,10 @@ Two switches under *Trade-offs (visible)*. Both are the idea of the [Simple-Decl
 
 ## Gameplay trade-offs (opt-in)
 
-### Distant bot animation at half rate (experimental, not recommended)
-**Measured (Streets, 5 repeats):** −0.72 to −1.09 ms per frame. **Problem:** Unity's animator delivers ~20% less root motion when it catches up two frames in one update, so affected off-screen bots move ~20–25% slower (run 1.9 vs 2.45 m/s). Details in FINDINGS.md. Kept for reference; leave it off.
+### Distant bot animation at half rate (experimental; since 0.3.0 Fika clients only)
+**Measured (Streets self-hosted, 5 repeats, 4.0.13):** −0.72 to −1.09 ms per frame. **Problem there:** Unity's animator delivers ~20% less root motion when it catches up two frames in one update, so affected off-screen bots moved ~20–25% slower (run 1.9 vs 2.45 m/s). Details in FINDINGS.md.
+
+**Since 0.3.0** it applies only to bots on a Fika client. There, Fika writes each observed bot's position from the host's snapshots every frame (`ObservedPlayer.ManualStateUpdate`), so root motion moves nothing and the shortfall can't slow them down. *Half rate: local bots too* (advanced) brings back the old behaviour for bots simulated on your own PC; not recommended. Never on the headless host. Fika's `ObservedPlayer.LateUpdate` doesn't call EFT's `Player.LateUpdate`, so the speed and culling-mode restore hooks it directly.
 
 *Trade-offs (gameplay) → Distant bot animation at half rate*, off by default.
 
@@ -127,8 +144,9 @@ Two switches under *Trade-offs (visible)*. Both are the idea of the [Simple-Decl
 | Option | Kind | Frame-time gain | What you give up | Status |
 | --- | --- | --- | --- | --- |
 | Fewer bots: SPT `SPT_Data\configs\bot.json` → `maxBotCap.tarkovstreets` (24) | gameplay | ~0.25–0.3 ms per bot (animation ~0.1, IK and per-player scripts ~0.08, AI ~0.02, movement and physics queries ~0.05); 24 → 16 ≈ −2 to −2.5 ms | fewer bots alive at once | server config; not changed |
-| Distant bot animation at half rate | gameplay/visual | est. ~0.5 ms | distant bots animate at half rate | prototype, batch 3 |
-| Bot IK distance 20–40 m | visual | 0.3–0.7 ms with bots on screen | distant bots' foot IK | option |
+| Distant bot animation at half rate | visual on Fika clients (gameplay when local) | −0.7 to −1.1 ms self-hosted; Fika client to be measured (batch 4) | off-screen bots animate at half rate | option, Fika clients only |
+| Far players' arms at reduced rate | visual | to be measured (batch 4); the arms animator costs ~0.47 ms on the headless client | distant weapon handling less smooth | option, Fika clients only |
+| IK distance 20–40 m | visual | 0.3–0.7 ms with bots on screen (4.0.13) | distant bots' foot IK | Fika's *IK Cull Distance* (our option removed) |
 | Object LOD bias 1 | visual | −0.11 ms main, −0.37 ms render thread | trees thin out and debris vanishes at 40–60 m | option |
 | Overall visibility 400 (game setting) | visual | to be measured (batch 3) | far skyline cut off | setting |
 | Shadows Low (game setting) | visual | ~−0.1 ms | shadows end at 30 m instead of 40 m | not worth it |
@@ -153,8 +171,9 @@ Fika splits the raid between machines:
 | Declutter medium objects | clients | visually unequal: the objects stay solid for everyone, but you can't see them |
 | Batched overlaps | the machine moving the characters: the host for bots, each client for its own player | yes: same query results (validated with 0 misses) |
 | Runaway move guard | the host or headless (the BTR gunner is a host-side bot) | yes |
-| Bot IK distance | clients | yes, visual only. Fika 2.4.4+ sets the same value (`CULL_GROUNDER`) through *IK Cull Distance*, so use only one |
-| Half-rate bot animation (parked) | clients | only for off-screen bots, never for humans. A stale pose changes your own hit results |
+| IK distance | clients | Fika's own *IK Cull Distance* (our option was removed in 0.3.0) |
+| Half-rate bot animation | clients only, observed bots only | yes: off-screen bots only, never humans, never on the host. Position comes from the host |
+| Far players' arms at reduced rate | clients only | yes: arms animator only (shots come from packets, hit bones from the body animator); never on the host |
 
 **Installing:**
 - Fika checks each plugin's GUID and a CRC32C hash of its DLL against the server's lists.

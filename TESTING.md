@@ -58,6 +58,17 @@ Two Streets raids on the same install: Fika self-hosted, then on the headless ho
 
 No F8 and no F5. Compare by category: rendering, Update, LateUpdate, animation, other.
 
+### Batch 4: 4.1.6 baseline and Fika-client features (2026-10-20, v0.3.0)
+
+All on the headless host, borderless, sunny Streets, at the same landmark. Install only `SPTOptimizer.Optimizations.dll` on the headless; nothing in this batch changes what it does.
+1. **Fika IK distance, two raids or a restart between them** (Fika's setting can't be switched by F5): F9 capture standing still for 60 s with *IK Cull Distance* 40 (default), then 15. Note `bots_alive`.
+2. **F5 round-robin**, profiler *Sequence experiments* = `ObservedArmsReducedRate, BotAnimHalfRate, AllOptimizationsOff`, 4–5 repeats. Both new switches stay off in the config; the sequence holds them off for Baseline. Stand still, view fixed.
+3. **Scope**: with a variable scope at high zoom on a busy view, *Sequence experiments* = `ScopeHalfRate`, 4 repeats, scoped in the whole time.
+4. **Eyes-on check**, both new switches on: watch bots at 30–80 m reload and switch weapons, and listen for late or missing weapon sounds. Bots running off-screen should still arrive where they would have.
+5. Send `LogOutput.log` (the `Stats:` lines carry `observedArmsLod.*` and `botAnimLod.*` counters) and the captures.
+
+Optional, on the headless itself: Fika's *Bot sleeping* on (fewer awake bots means fewer snapshots and shots for the client to replay). That changes the raid, so compare it as its own pair of raids.
+
 ## Analysis
 
 - `summary.txt` covers most questions: frame stats, PlayerLoop breakdown, A/B table, worst frames.
