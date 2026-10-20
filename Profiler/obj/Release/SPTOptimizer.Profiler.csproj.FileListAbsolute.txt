@@ -1,0 +1,11 @@
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\obj\Release\SPTOptimizer.Profiler.csproj.AssemblyReference.cache
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\obj\Release\SPTOptimizer.Profiler.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\obj\Release\SPTOptimizer.Profiler.AssemblyInfoInputs.cache
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\obj\Release\SPTOptimizer.Profiler.AssemblyInfo.cs
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\obj\Release\SPTOptimizer.Profiler.csproj.CoreCompileInputs.cache
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\bin\Release\default-targets.txt
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\bin\Release\SPTOptimizer.Profiler.deps.json
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\bin\Release\SPTOptimizer.Profiler.dll
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\bin\Release\SPTOptimizer.Profiler.pdb
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\obj\Release\SPTOptimizer.Profiler.dll
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Profiler\obj\Release\SPTOptimizer.Profiler.pdb

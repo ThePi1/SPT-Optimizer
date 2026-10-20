@@ -1,0 +1,53 @@
+# SPTOptimizer.Profiler method targets. Press F8 in game to instrument these, F8 again to remove.
+# Edit the copy in BepInEx\config\SPTOptimizer.Profiler.targets.txt; changes apply the next time you press F8.
+#
+#   @unity-messages <Assembly> [Update,LateUpdate,FixedUpdate,OnGUI]
+#       every MonoBehaviour message declared in that assembly (default: Update,LateUpdate,FixedUpdate)
+#   @callees <Type>:<Method>
+#       that method plus everything it calls directly (one level). Good for drilling down.
+#   <Type>:<Method>      Type is the full name (nested types use '+'), Method may contain '*'
+#   -<Type>:<Method>     exclude
+#
+# Times are inclusive (incl) and self (minus time in other instrumented methods it called).
+# Each instrumented call costs a fraction of a microsecond, so methods called thousands of times
+# per frame will look more expensive than they are. Check instr_calls in frames.csv.
+
+# Broad sweep: every Update/LateUpdate/FixedUpdate in the game code.
+@unity-messages Assembly-CSharp
+
+# Render-time script callbacks: these run inside PostLateUpdate.FinishFrameRendering / the Cam.* slots.
+# OnRenderImage is where image effects (post-processing) run; OnWillRenderObject runs per renderer per camera.
+@unity-messages Assembly-CSharp OnPreCull,OnPreRender,OnPostRender,OnRenderImage,OnRenderObject,OnWillRenderObject,OnBecameVisible,OnBecameInvisible
+@unity-messages Unity.Postprocessing.Runtime OnPreCull,OnPreRender,OnPostRender,OnRenderImage
+# Delegates subscribed to Camera.onPreCull/onPreRender/onPostRender at the moment you press F8.
+@camera-callbacks
+
+# Manual ticks that don't go through Unity messages.
+EFT.GameWorld:DoWorldTick
+EFT.GameWorld:DoOtherWorldTick
+EFT.Player:ComplexUpdate
+BotsClass:UpdateByUnity
+AICoreControllerClass:Update
+
+# Bot brain: BotOwner.UpdateManual and each subsystem it ticks (sensors, mover, memory, ...).
+@callees EFT.BotOwner:UpdateManual
+
+# Main-thread physics queries (managed wrappers; counts and time per frame). These are the candidates for
+# batching onto worker threads with RaycastCommand/SpherecastCommand jobs. Overloads call each other, so use self time.
+UnityEngine.Physics:Raycast*
+UnityEngine.Physics:Linecast*
+UnityEngine.Physics:SphereCast*
+UnityEngine.Physics:CapsuleCast*
+UnityEngine.Physics:Overlap*
+UnityEngine.Physics:CheckSphere
+UnityEngine.Physics:CheckCapsule
+
+# Per-player animation / IK path (runs once per alive player per frame).
+#   Player.LateUpdate -> VisualPass (procedural weapon anim, FBBIK, limb IK, head/hands) and ComplexLateUpdate
+#   Player.ComplexUpdate -> ManualUpdate (movement, body), ArmsUpdate (hands controller)
+@callees EFT.Player:LateUpdate
+@callees EFT.Player:VisualPass
+@callees EFT.Player:ComplexLateUpdate
+@callees EFT.Player:ComplexUpdate
+@callees EFT.Player:ManualUpdate
+@callees EFT.Player:ArmsUpdate

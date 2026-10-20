@@ -1,0 +1,10 @@
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\obj\Release\SPTOptimizer.Optimizations.csproj.AssemblyReference.cache
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\obj\Release\SPTOptimizer.Optimizations.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\obj\Release\SPTOptimizer.Optimizations.AssemblyInfoInputs.cache
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\obj\Release\SPTOptimizer.Optimizations.AssemblyInfo.cs
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\obj\Release\SPTOptimizer.Optimizations.csproj.CoreCompileInputs.cache
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\bin\Release\SPTOptimizer.Optimizations.deps.json
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\bin\Release\SPTOptimizer.Optimizations.dll
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\bin\Release\SPTOptimizer.Optimizations.pdb
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\obj\Release\SPTOptimizer.Optimizations.dll
+C:\Users\Joey\Documents\WebsiteRepos\SPT-Optimizer\Optimizations\obj\Release\SPTOptimizer.Optimizations.pdb

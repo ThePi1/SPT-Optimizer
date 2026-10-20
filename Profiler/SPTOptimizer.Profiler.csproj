@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>SPTOptimizer.Profiler</RootNamespace>
+    <AssemblyName>SPTOptimizer.Profiler</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Version>0.1.0</Version>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- Game install to compile against and deploy to, override with: dotnet build -p:SptDir=... -->
+    <SptDir Condition="'$(SptDir)' == ''">I:\Games\spt-4-0-13-hideoutroulette</SptDir>
+    <Managed>$(SptDir)\EscapeFromTarkov_Data\Managed</Managed>
+    <!-- Copy the built dll into BepInEx\plugins after each build. Disable with -p:Deploy=false -->
+    <Deploy Condition="'$(Deploy)' == ''">true</Deploy>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp" HintPath="$(Managed)\Assembly-CSharp.dll" Private="False" />
+    <Reference Include="AnimationSystem.Types" HintPath="$(Managed)\AnimationSystem.Types.dll" Private="False" />
+    <Reference Include="Comfort" HintPath="$(Managed)\Comfort.dll" Private="False" />
+    <Reference Include="UnityEngine" HintPath="$(Managed)\UnityEngine.dll" Private="False" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(Managed)\UnityEngine.CoreModule.dll" Private="False" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="$(Managed)\UnityEngine.IMGUIModule.dll" Private="False" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(Managed)\UnityEngine.TextRenderingModule.dll" Private="False" />
+    <Reference Include="UnityEngine.AnimationModule" HintPath="$(Managed)\UnityEngine.AnimationModule.dll" Private="False" />
+    <Reference Include="UnityEngine.ParticleSystemModule" HintPath="$(Managed)\UnityEngine.ParticleSystemModule.dll" Private="False" />
+    <Reference Include="UnityEngine.TerrainModule" HintPath="$(Managed)\UnityEngine.TerrainModule.dll" Private="False" />
+    <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(Managed)\UnityEngine.InputLegacyModule.dll" Private="False" />
+    <Reference Include="UnityEngine.ScreenCaptureModule" HintPath="$(Managed)\UnityEngine.ScreenCaptureModule.dll" Private="False" />
+    <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(Managed)\UnityEngine.ImageConversionModule.dll" Private="False" />
+    <Reference Include="BepInEx" HintPath="$(SptDir)\BepInEx\core\BepInEx.dll" Private="False" />
+    <Reference Include="0Harmony" HintPath="$(SptDir)\BepInEx\core\0Harmony.dll" Private="False" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="default-targets.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(Deploy)' == 'true'">
+    <MakeDir Directories="$(SptDir)\BepInEx\plugins\SPTOptimizer" />
+    <Copy SourceFiles="$(TargetPath);$(OutDir)default-targets.txt" DestinationFolder="$(SptDir)\BepInEx\plugins\SPTOptimizer" />
+  </Target>
+</Project>
