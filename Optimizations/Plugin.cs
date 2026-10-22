@@ -60,6 +60,16 @@ namespace SPTOptimizer.Optimizations
             set => Optimizations.ObservedArmsLod.Enabled = value;
         }
 
+        public static bool ScopeReducedRate
+        {
+            get => Optimizations.ScopeRate.Enabled;
+            set
+            {
+                if (Optimizations.ScopeRate.Enabled && !value) Optimizations.ScopeRate.Release();
+                Optimizations.ScopeRate.Enabled = value;
+            }
+        }
+
         public static bool RunawayMoveGuard
         {
             get => Optimizations.RunawayMoveGuard.Enabled;
@@ -81,7 +91,7 @@ namespace SPTOptimizer.Optimizations
         public static int DeclutterHidden => Optimizations.Declutter.HiddenObjects;
     }
 
-    [BepInPlugin("com.sptoptimizer.optimizations", "SPTOptimizer.Optimizations", "0.3.0")]
+    [BepInPlugin("com.sptoptimizer.optimizations", "SPTOptimizer.Optimizations", "0.3.1")]
     public class Plugin : BaseUnityPlugin
     {
         internal GcPolicy Gc;
@@ -111,6 +121,9 @@ namespace SPTOptimizer.Optimizations
         private ConfigEntry<int> _armsLodInterval;
         private ConfigEntry<float> _armsLodNear;
         private ConfigEntry<float> _armsLodFar;
+        private ConfigEntry<bool> _scopeRate;
+        private ConfigEntry<int> _scopeRateInterval;
+        private ConfigEntry<float> _scopeRateTurn;
         private ConfigEntry<bool> _physicsDiag;
         private ConfigEntry<bool> _declutterSmall;
         private ConfigEntry<bool> _declutterMedium;
@@ -122,38 +135,13 @@ namespace SPTOptimizer.Optimizations
         {
             Gc = new GcPolicy(Logger);
             Culling = new ShadowProxyCulling(Logger);
+            Declutter.Init(Logger);
+            BindConfig();
 
-            _gcEnabled = Config.Bind("GC policy", "Enabled", true,
-                "In raid, keep the GC off while you're in the game view and on only while a menu is open (SPT turns it on at the first inventory open and never off again, causing 50-90 ms hitches).");
-            _gcAnyMenu = Config.Bind("GC policy", "Collect in any menu", false,
-                "Also let the GC run while other in-raid menus are open (not just the Inventory).");
-            _gcHeadroom = Config.Bind("GC policy", "Heap headroom MB", 3072f,
-                "Safety valve: if the managed heap grows this far past its raid-start size, the GC is turned on until it drops back to half of that.");
-            _cullEnabled = Config.Bind("Shadow proxy culling", "Enabled", true,
-                "Disable static ShadowsOnly renderers far beyond the shadow distance; they cost culling time but never cast visible shadows.");
-            _cullDistance = Config.Bind("Shadow proxy culling", "Distance", 100f,
-                "Proxies farther than this (m, from the nearest point of their bounds) are disabled.");
-            _cullShadowMult = Config.Bind("Shadow proxy culling", "Minimum multiple of shadow distance", 2.5f,
-                "The distance used is at least this multiple of the current shadow distance.");
-            _cullLayers = Config.Bind("Shadow proxy culling", "Layers", "Default,CullingMask,HighPolyCollider",
-                "Layers whose ShadowsOnly renderers are managed (applies to the next raid).");
-
-            _fastAnimator = Config.Bind("Experimental", "BSG fast body animator", false,
-                new ConfigDescription("EXPERIMENTAL, needs a game restart. Use BSG's own playable-based body animator (UseBodyFastAnimator, normally only for online observed players) for every player: root motion from a precomputed table and no body animation for off-screen players. May break animation, movement or footsteps.",
-                    null, new ConfigurationManagerAttributes { IsAdvanced = true }));
             if (_fastAnimator.Value) FastAnimator.Install(new Harmony("com.sptoptimizer.optimizations.fastanimator"), Logger);
-            else Logger.LogInfo("Fast body animator: off (set [Experimental] BSG fast body animator = true and restart the game to try it)");
+            else Logger.LogInfo("Fast body animator: off (set [3. Experimental] BSG fast body animator = true and restart the game to try it)");
             _fastAnimator.SettingChanged += (_, __) =>
                 Logger.LogWarning($"BSG fast body animator set to {_fastAnimator.Value}: this only takes effect after a full game restart (currently {(FastAnimator.Installed ? "on" : "off")})");
-
-            _overlapsEnabled = Config.Bind("Batched overlaps", "Enabled", true,
-                "Run all players' character-controller neighbour queries (OverlapSphere) as one multi-threaded batch instead of one by one on the main thread. Same queries; falls back to the original whenever the batch doesn't cover a query.");
-            _overlapsMargin = Config.Bind("Batched overlaps", "Margin", 0.15f,
-                "Extra radius (m) on each batched sphere so that sub-step queries and nearby movement during the frame stay inside it.");
-            _guardEnabled = Config.Bind("Runaway move guard", "Enabled", true,
-                "Skip character-controller moves at impossible speeds. Fixes the parked BTR gunner on Streets, whose endless off-map 'fall' makes EFT run hundreds of collision sub-steps per frame until the BTR arrives.");
-            _guardMaxSpeed = Config.Bind("Runaway move guard", "Max speed m/s", 200f,
-                "Moves faster than this are skipped (sprinting ~7 m/s, long falls ~30 m/s).");
             try
             {
                 RunawayMoveGuard.Install(new Harmony("com.sptoptimizer.optimizations.runawaymove"), Logger);
@@ -162,21 +150,6 @@ namespace SPTOptimizer.Optimizations
             {
                 Logger.LogError("Runaway move guard unavailable: " + ex);
             }
-
-            _fadedLights = Config.Bind("Faded light culling", "Enabled", true,
-                "Switch off lights that EFT has already faded to intensity 0 by distance (Unity still processes every enabled light, ~4,600 on Streets). No visual change (verified by screenshot comparison); ~0.24 ms less camera culling.");
-            _lodBias = Config.Bind("Trade-offs (visible)", "Object LOD bias override", 0f,
-                new ConfigDescription("0 = use the game's Object LOD setting (minimum 2). 1 = lower-detail models switch in sooner: on Streets −0.11 ms main thread, −0.37 ms render thread, −390 draws, but mid-distance trees thin out and small debris at ~40–60 m disappears.",
-                    new AcceptableValueRange<float>(0f, 4f)));
-            _physicsDiag = Config.Bind("Diagnostics", "Physics and corpse stats", true,
-                "Log what keeps EFT's physics simulation running (corpses, loot, BTR), its cost, and corpse settle times, in the 30 s 'Stats:' line. No behaviour change.");
-            Declutter.Init(Logger);
-            _declutterSmall = Config.Bind("Trade-offs (visible)", "Declutter small objects", false,
-                "Stop drawing small decorative clutter that nothing in the game interacts with: paper, litter, cans, bottles, casings, debris bits, puddles, dirt and blood mesh decals. Anything with a collider, trigger, sound, light or game script is kept, so bullets, movement, AI, footstep sounds and loot are unchanged. Measured ~0 ms frame time on Streets (−2% draw calls): a cleaner look rather than a speed-up. Can be switched mid-raid.");
-            _declutterMedium = Config.Bind("Trade-offs (visible)", "Declutter medium objects", false,
-                "Also stop drawing clutter up to 2 m that has a collider: cardboard boxes, garbage bags, bricks, scrap. Only the visuals go: the objects stay SOLID, so they become invisible obstacles that still stop bullets, players and grenades (and still give everyone else in Fika cover). Measured −7% draw calls, −0.25 ms render thread, no measurable frame-time change on Streets.");
-            _declutterReport = Config.Bind("Diagnostics", "Declutter report", false,
-                "When declutter scans a map, write SPTOptimizer\\declutter_<map>.txt: what matched each keyword, why matches were rejected, and the most common small visual-only objects no keyword matched (for tuning). Makes the scan slower.");
             try
             {
                 FadedLightCulling.Install(new Harmony("com.sptoptimizer.optimizations.fadedlights"), Logger);
@@ -185,24 +158,6 @@ namespace SPTOptimizer.Optimizations
             {
                 Logger.LogError("Faded light culling unavailable: " + ex);
             }
-            // The bot IK distance option (EFTHardSettings.CULL_GROUNDER) was removed in 0.3.0: Fika 2.4.4+ owns that value
-            // through its "IK Cull Distance" setting, and re-applying ours on every config change silently undid Fika's.
-            _animLod = Config.Bind("Trade-offs (gameplay)", "Distant bot animation at half rate", false,
-                "EXPERIMENTAL. Body animators of off-screen bots beyond the off-screen distance are skipped every other frame and catch up on the next (~0.7-1.1 ms on Streets self-hosted). Applies only to bots on a Fika client, whose position comes from the host, so they move normally. Never on the headless host. On-screen bots are never touched.");
-            _animLodOffscreen = Config.Bind("Trade-offs (gameplay)", "Half rate: off-screen distance", 10f, "Off-screen bots farther than this (m) animate at half rate (EFT already stops writing their bones beyond 10 m).");
-            _animLodLocal = Config.Bind("Trade-offs (gameplay)", "Half rate: local bots too", false,
-                new ConfigDescription("NOT RECOMMENDED. Also apply half rate to bots simulated on this PC (no Fika, or you are the Fika host). Unity's animator delivers ~20% less root motion on the catch-up, so those bots move ~20-25% slower while off-screen.",
-                    null, new ConfigurationManagerAttributes { IsAdvanced = true }));
-            _armsLod = Config.Bind("Trade-offs (visible)", "Far player arms at reduced rate", false,
-                "Fika clients only. The arms animator of bots that are off-screen, or on screen but far away, is evaluated every Nth frame and catches up in one step. Their shots come from the network, so hits and damage are unchanged; their weapon handling looks less smooth and its sounds can start up to N-1 frames late. Never while you aim down sights at them, never within the near distance, never on the headless host.");
-            _armsLodHumans = Config.Bind("Trade-offs (visible)", "Arms reduced rate: human players too", false,
-                "Also apply it to other human players, not only bots.");
-            _armsLodInterval = Config.Bind("Trade-offs (visible)", "Arms reduced rate: every N frames", 2,
-                new ConfigDescription("Evaluate the arms animator of qualifying players once every N frames.", new AcceptableValueRange<int>(1, 4)));
-            _armsLodNear = Config.Bind("Trade-offs (visible)", "Arms reduced rate: near distance", 25f,
-                "Players closer than this (m) always update at full rate.");
-            _armsLodFar = Config.Bind("Trade-offs (visible)", "Arms reduced rate: on-screen distance", 60f,
-                "On-screen players farther than this (m) update at the reduced rate. Keep it at or above Fika's IK Cull Distance (40).");
             try
             {
                 ObservedArmsLod.Install(new Harmony("com.sptoptimizer.optimizations.observedarmslod"), Logger);
@@ -235,9 +190,6 @@ namespace SPTOptimizer.Optimizations
             {
                 Logger.LogError("Physics diagnostics unavailable: " + ex);
             }
-
-            _overlapsValidate = Config.Bind("Batched overlaps", "Validate", false,
-                "Testing only (costs time): also run the original query for every served one and log any collider the batch missed. Also logs the controller query rate while the prototype is off, for comparison.");
             Overlaps = new BatchedOverlaps(Logger);
             try
             {
@@ -253,6 +205,90 @@ namespace SPTOptimizer.Optimizations
             Config.SettingChanged += (_, __) => ApplyConfig();
             Api.Instance = this;
             Logger.LogInfo($"Loaded. GC policy {(Gc.Enabled ? "on" : "off")}, shadow proxy culling {(Culling.Enabled ? "on" : "off")} at {_cullDistance.Value} m");
+        }
+
+        /// <summary>
+        /// The F12 menu, in display order. Sections are numbered so ConfigurationManager lists them in this order;
+        /// fine-tuning values are advanced (shown only with "Advanced settings" ticked). Entries renamed in 0.3.x carry
+        /// their old values over (see ConfigBuilder).
+        /// </summary>
+        private void BindConfig()
+        {
+            var c = new ConfigBuilder(Config, Logger);
+            const string Main = "1. Optimizations (no visible change)";
+            const string Visual = "2. Visual trade-offs";
+            const string Exp = "3. Experimental";
+            const string Diag = "4. Diagnostics";
+
+            _gcEnabled = c.Bind(Main, "GC policy", true,
+                "In raid, keep the garbage collector off while you're in the game view and on only while the inventory is open. SPT turns it on at the first inventory open and never off again, which causes 50-90 ms hitches.", was: "GC policy/Enabled");
+            _gcAnyMenu = c.Bind(Main, "GC policy: collect in any menu", false,
+                "Also let the GC run while other in-raid menus are open (not just the inventory).", advanced: true, was: "GC policy/Collect in any menu");
+            _gcHeadroom = c.Bind(Main, "GC policy: heap headroom MB", 3072f,
+                "Safety valve: if the managed heap grows this far past its raid-start size, the GC is turned on until it drops back to half of that.", advanced: true, was: "GC policy/Heap headroom MB");
+            _cullEnabled = c.Bind(Main, "Shadow proxy culling", true,
+                "Disable static shadow-only renderers far beyond the shadow distance: they cost culling time but never cast a visible shadow (-0.5 to -1.0 ms on Streets).", was: "Shadow proxy culling/Enabled");
+            _cullDistance = c.Bind(Main, "Shadow proxy culling: distance", 100f,
+                "Proxies farther than this (m, from the nearest point of their bounds) are disabled.", advanced: true, was: "Shadow proxy culling/Distance");
+            _cullShadowMult = c.Bind(Main, "Shadow proxy culling: minimum multiple of shadow distance", 2.5f,
+                "The distance used is at least this multiple of the current shadow distance.", advanced: true, was: "Shadow proxy culling/Minimum multiple of shadow distance");
+            _cullLayers = c.Bind(Main, "Shadow proxy culling: layers", "Default,CullingMask,HighPolyCollider",
+                "Layers whose shadow-only renderers are managed (applies from the next raid).", advanced: true, was: "Shadow proxy culling/Layers");
+            _fadedLights = c.Bind(Main, "Faded light culling", true,
+                "Switch off lights EFT has already faded to zero by distance; Unity still processes every enabled light (~4,600 on Streets). No visual change; -0.24 ms.", was: "Faded light culling/Enabled");
+            _overlapsEnabled = c.Bind(Main, "Batched overlaps", true,
+                "Run all characters' collision neighbour queries as one multi-threaded batch instead of one by one on the main thread. Same results. Helps where characters are simulated: self-hosted, or on the Fika host.", was: "Batched overlaps/Enabled");
+            _overlapsMargin = c.Bind(Main, "Batched overlaps: margin", 0.15f,
+                "Extra radius (m) on each batched sphere, so sub-step queries and movement during the frame stay inside it.", advanced: true, was: "Batched overlaps/Margin");
+            _guardEnabled = c.Bind(Main, "Runaway move guard", true,
+                "Skip character moves at impossible speeds. Fixes the parked BTR gunner on Streets, whose endless off-map fall costs up to 6 ms per frame until the BTR arrives. Helps where bots are simulated: self-hosted, or on the Fika host.", was: "Runaway move guard/Enabled");
+            _guardMaxSpeed = c.Bind(Main, "Runaway move guard: max speed m/s", 200f,
+                "Moves faster than this are skipped (sprinting ~7 m/s, long falls ~30 m/s).", advanced: true, was: "Runaway move guard/Max speed m/s");
+
+            _scopeRate = c.Bind(Visual, "Scope camera at reduced rate", false,
+                "While you look through a magnified scope, its picture is rendered only every Nth frame; the lens shows the last image in between. EFT renders the whole scene a second time for the scope: -0.9 to -1.8 ms at every 2 frames. The main view, aim and hits are unchanged; the scope picture is less smooth. With PiP-Disabler it only affects the scopes PiP-Disabler leaves to the game (variable, thermal, night vision).", was: "Trade-offs (visible)/Scope camera at reduced rate");
+            _scopeRateInterval = c.Bind(Visual, "Scope reduced rate: every N frames", 2,
+                "Render the scope picture once every N frames.", range: new AcceptableValueRange<int>(2, 4), was: "Trade-offs (visible)/Scope reduced rate: every N frames");
+            _scopeRateTurn = c.Bind(Visual, "Scope reduced rate: full rate above turn speed", 15f,
+                "While the view turns faster than this (degrees per second), render the scope every frame, where the reduced rate would show as judder. 0 = never.", advanced: true,
+                range: new AcceptableValueRange<float>(0f, 360f), was: "Trade-offs (visible)/Scope reduced rate: full rate above turn speed");
+            _armsLod = c.Bind(Visual, "Far player arms at reduced rate", false,
+                "Fika clients only. The arms and weapon animation of bots that are off screen, or on screen but far away, is updated every Nth frame (-0.31 ms with ~20 bots). Their shots come from the network, so hits and damage are unchanged; their weapon handling looks less smooth and its sounds can start up to N-1 frames late. Never while you aim at them, never up close, never on the headless host.", was: "Trade-offs (visible)/Far player arms at reduced rate");
+            _armsLodInterval = c.Bind(Visual, "Arms reduced rate: every N frames", 2,
+                "Update the arms animation of qualifying players once every N frames.", range: new AcceptableValueRange<int>(1, 4), was: "Trade-offs (visible)/Arms reduced rate: every N frames");
+            _armsLodHumans = c.Bind(Visual, "Arms reduced rate: human players too", false,
+                "Also apply it to other human players, not only bots.", advanced: true, was: "Trade-offs (visible)/Arms reduced rate: human players too");
+            _armsLodNear = c.Bind(Visual, "Arms reduced rate: near distance", 25f,
+                "Players closer than this (m) always update at full rate.", advanced: true, was: "Trade-offs (visible)/Arms reduced rate: near distance");
+            _armsLodFar = c.Bind(Visual, "Arms reduced rate: on-screen distance", 60f,
+                "On-screen players farther than this (m) update at the reduced rate. Keep it at or above Fika's IK Cull Distance (40).", advanced: true, was: "Trade-offs (visible)/Arms reduced rate: on-screen distance");
+            _declutterSmall = c.Bind(Visual, "Declutter small objects", false,
+                "Stop drawing small decorative clutter nothing interacts with: paper, litter, cans, bottles, casings, debris, puddles, dirt and blood decals. Anything with a collider, trigger, sound, light or game script is kept, so gameplay is unchanged. A cleaner look rather than a speed-up (~0 ms). Can be switched mid-raid.", was: "Trade-offs (visible)/Declutter small objects");
+            _declutterMedium = c.Bind(Visual, "Declutter medium objects", false,
+                "Also stop drawing clutter up to 2 m that has a collider: cardboard boxes, garbage bags, bricks, scrap. Only the visuals go: the objects stay SOLID, so they become invisible obstacles that still stop bullets and players (and still give everyone else in Fika cover). ~0 ms frame time.", was: "Trade-offs (visible)/Declutter medium objects");
+            _lodBias = c.Bind(Visual, "Object LOD bias override", 0f,
+                "0 = use the game's Object LOD setting (minimum 2). 1 = lower-detail models switch in sooner: -0.11 ms main thread and -0.37 ms render thread on Streets, but mid-distance trees thin out and small debris at ~40-60 m disappears.",
+                range: new AcceptableValueRange<float>(0f, 4f), was: "Trade-offs (visible)/Object LOD bias override");
+
+            _animLod = c.Bind(Exp, "Distant bot animation at half rate", false,
+                "Body animation of off-screen bots on a Fika client runs at half rate. Measured about 0 ms on a Fika client: it saves 0.11 ms of animation and costs about as much itself. Self-hosted it saves 0.7-1.1 ms, but only with the advanced local-bots option, which makes those bots move slower. Not recommended.", was: "Trade-offs (gameplay)/Distant bot animation at half rate");
+            _animLodOffscreen = c.Bind(Exp, "Half rate: off-screen distance", 10f,
+                "Off-screen bots farther than this (m) animate at half rate.", advanced: true, was: "Trade-offs (gameplay)/Half rate: off-screen distance");
+            _animLodLocal = c.Bind(Exp, "Half rate: local bots too", false,
+                "NOT RECOMMENDED. Also apply half rate to bots simulated on this PC (no Fika, or you are the Fika host). Unity's animator delivers ~20% less root motion on the catch-up, so those bots move ~20-25% slower while off screen.", advanced: true, was: "Trade-offs (gameplay)/Half rate: local bots too");
+            _fastAnimator = c.Bind(Exp, "BSG fast body animator", false,
+                "Needs a game restart. Use BSG's own lightweight body animator (UseBodyFastAnimator, normally only for online observed players) for every player. May break animation, movement or footsteps.", advanced: true, was: "Experimental/BSG fast body animator");
+
+            _physicsDiag = c.Bind(Diag, "Physics and corpse stats", true,
+                "Log what keeps EFT's physics simulation running (corpses, loot, BTR), its cost, and corpse settle times, in the 30 s Stats line. No behaviour change.", advanced: true, was: "Diagnostics/Physics and corpse stats");
+            _declutterReport = c.Bind(Diag, "Declutter report", false,
+                "When declutter scans a map, write SPTOptimizer\\declutter_<map>.txt: what matched each keyword, why matches were rejected, and the most common small visual-only objects no keyword matched. Makes the scan slower.", advanced: true, was: "Diagnostics/Declutter report");
+            _overlapsValidate = c.Bind(Diag, "Batched overlaps: validate", false,
+                "Testing only (costs time): also run the original query for every served one and log any collider the batch missed.", advanced: true, was: "Batched overlaps/Validate");
+
+            // Removed in 0.3.0: Fika 2.4.4+ owns this value through its own "IK Cull Distance" setting.
+            c.Drop("Trade-offs (visible)/Bot IK distance");
+            c.Finish();
         }
 
         private void ApplyConfig()
@@ -276,6 +312,9 @@ namespace SPTOptimizer.Optimizations
             ObservedArmsLod.Interval = _armsLodInterval.Value;
             ObservedArmsLod.NearDistance = _armsLodNear.Value;
             ObservedArmsLod.FarDistance = _armsLodFar.Value;
+            Api.ScopeReducedRate = _scopeRate.Value;
+            ScopeRate.Interval = _scopeRateInterval.Value;
+            ScopeRate.TurnSpeed = _scopeRateTurn.Value;
             // Faded light culling sweeps the scene when switched on; in a raid only (the raid hook sweeps otherwise).
             if (!_fadedLights.Value || Raid.InRaid(out _)) FadedLightCulling.Enabled = _fadedLights.Value;
             RunawayMoveGuard.MaxSpeed = _guardMaxSpeed.Value;
@@ -298,6 +337,7 @@ namespace SPTOptimizer.Optimizations
             FadedLightCulling.Tick();
             BotAnimLod.Tick();
             ObservedArmsLod.Tick();
+            ScopeRate.Tick();
             Declutter.Tick();
             Stats.Tick(Logger);
 
@@ -326,6 +366,7 @@ namespace SPTOptimizer.Optimizations
                     // raid over: drop per-player state
                     BotAnimLod.ReleaseAll();
                     ObservedArmsLod.ReleaseAll();
+                    ScopeRate.Release();
                 }
                 _raidSeenAt = -1f;
                 _raidStateLogged = _raidLightsSwept = false;

@@ -6,6 +6,17 @@ A BepInEx plugin that records per-frame timing in EFT (SPT 4.0.13) without a Uni
 
 `dotnet build -c Release` builds the plugin and copies it to `I:\Games\spt-4-0-13-hideoutroulette\BepInEx\plugins\SPTOptimizer\`. To use a different install, pass `-p:SptDir=...`. The build is already deployed to that copy.
 
+## Settings menu (F12)
+
+Since 0.3.1 the settings are in four numbered sections; values from the old names carry over automatically. Fine-tuning values are *advanced* (tick **Advanced settings** to see them).
+
+| Section | Everyday | Advanced |
+| --- | --- | --- |
+| **1. Capture** | Toggle capture (F9), Auto capture raids | Scene census key (F7), census at capture stop, per-subsystem timing, Unity counters, output folder, keep frames.bin |
+| **2. A/B testing** | Run A/B sequence (F5), Sequence experiments, Sequence repeats, Step length (s), Screenshot every step, Auto-start after raid start (s), Auto-start maps | Round-robin layout, Experiments per Baseline, Cycle experiment key (F6) |
+| **3. Method timing** | Toggle method instrumentation (F8) | Collect method timings during capture, Targets file |
+| **4. Experiment parameters** | | FarShadowsOnlyOff distance, LodBiasLow value, FarVertexLightsOff distance, AnimCullCompletelyFar distance |
+
 ## Use
 
 | Key | Does |
@@ -55,7 +66,7 @@ These change visuals and exist only for measurement. Each fully reverts when you
 | LodBiasLow | sets `QualitySettings.lodBias` to 1 (game default 2) |
 | FarVertexLightsOff | disables non-shadow `ForceVertex` lights farther than 50 m. It's re-applied every 0.5 s because EFT's light culling toggles lights itself |
 
-Player animation and IK experiments (the default F5 set; edit `[Experiments] Sequence experiments` to pick others):
+Player animation and IK experiments (the default F5 set; edit *2. A/B testing → Sequence experiments* to pick others):
 
 | Experiment | Change | Measures |
 | --- | --- | --- |
@@ -67,15 +78,15 @@ Player animation and IK experiments (the default F5 set; edit `[Experiments] Seq
 
 New per-frame columns: `bots_alive`, `bots_visible` (body renderer visible to any camera, shadow maps included), `bots_ik` (visible and within the IK distance), `bots_near` (within the 10 m AlwaysAnimate distance), `bots_anim_always`. The census adds a per-player table: distance, on-screen state, renderers forced off by EFT's bot culling, body/arms animator culling modes, hands controller. The default targets also time the per-player animation path (`Player.LateUpdate`, `VisualPass`, `ComplexLateUpdate`, `ComplexUpdate`, `ManualUpdate`, `ArmsUpdate` and their direct callees).
 
-**F5** runs Baseline, then each experiment with Baseline in between, holding each step for 15 s (about 2.75 minutes in total). It starts a capture if none is running and stops it at the end. **Stand still and don't move the camera** for the whole sequence. `summary.txt` then gets an **A/B experiments** table: for each experiment, the mean frame time, camera cull and render, animation, main/render thread and GPU time, draw calls, SetPass and shadow casters, plus a delta against the Baseline segments either side of it. The first 3 s of every step are skipped. The distances, lodBias value and hold time are in the `[Experiments]` config section.
+**F5** runs Baseline, then each experiment with Baseline in between, holding each step for 15 s (about 2.75 minutes in total). It starts a capture if none is running and stops it at the end. **Stand still and don't move the camera** for the whole sequence. `summary.txt` then gets an **A/B experiments** table: for each experiment, the mean frame time, camera cull and render, animation, main/render thread and GPU time, draw calls, SetPass and shadow casters, plus a delta against the Baseline segments either side of it. The first 3 s of every step are skipped. The step length is in *2. A/B testing*; the distances and lodBias value are in *4. Experiment parameters* (advanced).
 
 `tools/analyze.py <capture> --experiment FarShadowsOnlyOff` filters the analyzer to one experiment.
 
 ## Batch testing (many candidates in one run)
 
-Settings are in the `[Batch testing]` config section.
+Settings are in the *2. A/B testing* section.
 - **Round-robin layout** (on by default). Several experiments run between Baseline steps: *Experiments per Baseline*, default 2. The order rotates every repeat, so each experiment sits next to a Baseline on one side, then the other. The report compares each experiment segment with the nearest Baseline segment before and after it. Six candidates × 3 repeats at 12 s per step take about 5½ minutes.
-- **Auto-start.** *Auto-start A/B after raid start (s)* > 0 starts a capture and the F5 sequence automatically, once per raid, on the maps listed in *Auto-start maps*. A 10 s warning shows first. You load in, walk to a busy spot and stand still.
+- **Auto-start.** *Auto-start after raid start (s)* > 0 starts a capture and the F5 sequence automatically, once per raid, on the maps listed in *Auto-start maps*. A 10 s warning shows first. You load in, walk to a busy spot and stand still.
 - **Screenshots** (on by default). Inside each step's settle window (the 3 s the report skips), three shots are taken ~0.7 s apart: the experiment, a brief switch back to Baseline, then the experiment again. A pixel counts as a real change only if both experiment shots agree and both differ from the Baseline shot. Weapon sway, foliage, drifting cloud shadows and on-screen counters change between the two experiment shots too, so they drop out. Baseline steps take the same three shots without switching; their score is the noise floor. During the switch-back, frames keep the step's experiment tag.
   - `shots/diff.txt`: "real" and "raw" change % per step, plus the average per experiment
   - `NN_<step>_exp.png` and `_base.png`: full-size experiment and Baseline shots
@@ -118,7 +129,7 @@ Optimization switches:
 - `Declutter` turns *Declutter small objects* on. `DeclutterSolid` turns both *Declutter small objects* and *Declutter medium objects* on (collider-bearing clutter meshes hidden, colliders kept). Either switch that's on in the config is held off for the sequence so Baseline measures them off. To keep the scan out of the measured steps, turn on *Diagnostics → Declutter report*: that runs the scan 5 s into the raid even while both are off.
 - `BotAnimHalfRate` turns *Distant bot animation at half rate* on. Since 0.3.0 it affects only observed bots on a Fika client, so run it on a headless-hosted raid.
 - `ObservedArmsReducedRate` turns *Far player arms at reduced rate* on (Fika client only). Held off for the sequence like the others.
-- `ScopeHalfRate`: while an optic is rendering, the scope camera's `Camera` component is switched off every other frame (EFT shows and hides the optic camera with `SetActive`, which is left alone), so the lens shows each image for two frames. Measures the second camera's cost. **Run it scoped in for the whole sequence**, e.g. `Sequence experiments = ScopeHalfRate`; outside a scope it does nothing. It only re-enables a camera it switched off itself, so it leaves PiP-Disabler's disabled optic camera alone; with PiP-Disabler it measures only the scopes PiP-Disabler leaves to the game (variable, thermal and night-vision scopes).
+- `ScopeHalfRate` turns *Scope camera at reduced rate* on (its configured interval and turn rule; held off for Baseline like the others). **Run it scoped in for the whole sequence**, e.g. `Sequence experiments = ScopeHalfRate`; outside a scope it does nothing. With PiP-Disabler it measures only the scopes PiP-Disabler leaves to the game (variable, thermal and night-vision scopes).
 
 The 4.1.6 decompile rules out two other cheap knobs from the research report: EFT already sets every layer's cull distance from the *Overall visibility* setting (`CameraManager.SetOverallVisibility`; measured by `GfxVisibility400`), and the Low shadow preset already uses fewer than 4 cascades.
 

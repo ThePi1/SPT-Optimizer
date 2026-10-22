@@ -883,6 +883,26 @@ IK distance: inconclusive. Both dedicated captures (`094755`, `094904`) ran at 2
 
 Census detail: off-screen observed bots already have all renderers forced off and both animators on `CullUpdateTransforms` (arms animator component disabled; Fika updates it by hand). So Unity already skips their transform writes; half rate can only save the state-machine evaluation.
 
+## 2026-10-22: ScopeHalfRate, second run (capture `20261022-102433`, indoors, 4 repeats)
+
+**−0.89 ms** (spread 0.63), half the first run's −1.77 ms. Valid: in every half-rate step the draw count alternates by 350–900 between frames, so the scope camera was rendering and being skipped. The difference is the view. Indoors at a wall a few metres away, the scope camera draws ~350–900 objects per render, against ~2,000 on the open street in the first run. **The scope camera's cost scales with what it sees: ~1.8 ms here, ~3.5 ms outdoors.** The spread is high because the sight picture changed between steps (Baselines ranged 7.2–9.7 ms).
+
+In step 3 the player aimed through the backup red dot on top of the 3–20× scope and the scope camera still appeared to render. **Checked and ruled out** (capture `20261022-121644`, outdoors on the street, red dot only, 10 repeats): no draw-count alternation in 9 of 10 half-rate steps, and no frame-time change (+0.14 ms, noise). EFT switches the scope camera off while the backup sight is in use. The one exception (step 9: 6,482 draws, alternating by ~3,000, 14.1 ms) matches a brief switch to the scope itself, and the step-3 reading in the indoor run was the same thing.
+
+## 2026-10-22: Half rate and IK distance retest (capture `20261022-123703`, Streets, 19 bots, 4 repeats)
+
+The first repeat was during a firefight (Update 2.8–3.7 ms, p99 up to 20 ms); the other three are clean. Per segment, steps 3–12:
+
+| | Unity animation (`DirectorUpdateAnimationBegin`) | Script Update | Frame |
+| --- | --- | --- | --- |
+| Baseline | 0.64–0.66 ms | 1.68–1.93 ms | 7.76–7.86 ms |
+| BotAnimHalfRate | **0.53 ms** (−0.11) | 1.82–1.86 ms (**+0.14**) | 7.78–7.91 ms |
+| IkDistance20 | 0.63–0.64 ms | 1.64–1.69 ms | 7.58–7.81 ms |
+
+- **Half rate now runs on Fika clients** (`botAnimLod.skippedUpdates` up to ~28,000 per 30 s) **but nets about zero.** It saves 0.11 ms of Unity animation and spends ~0.14 ms more in Update, about 8 µs per bot per frame: switching each animator's culling mode and speed are native calls, and the validation counters are on by default. There's little to win: off-screen observed bots already have their renderers forced off and animators on `CullUpdateTransforms`, so Unity only evaluates their state machines. **Verdict: leave it off on clients.** At most ~0.1 ms could be recovered by cutting the overhead; not worth pursuing.
+- **IK distance 40 → 20 m: −0.08 ms** (spread 0.28) with about one bot in the 20–40 m band. Roughly 0.1 ms per on-screen bot at 20–40 m, the bots you're most likely fighting, so their stiffer feet and weapons would show. **Verdict: keep Fika's 40 m default.**
+- Play capture `20261022-124029` (F9, firefight): one 271 ms stall, almost all of it outside the player loop (`Loop.Gap` 255 ms, no GC), next to inventory-screen and icon-creation work; a game stall, not one of our features. The scope camera (`BaseOpticCamera`) shows up in most of the other worst frames.
+
 ## Next
 0. Done and verified: GC policy (no gameplay collections), shadow proxy culling (−0.6 to −1.0 ms). Culling visual check: passed in clear weather. Still open: a `GcOn` A/B step to measure the per-frame cost of an enabled GC, far vertex lights as an optimization (≈ −0.25 to −0.35 ms cull, needs a visual check), and then the main-thread script and animation costs (Player.LateUpdate, Animators).
 1. **GC policy (first optimization):** keep SPT's collection while the inventory is open, but turn the GC back off when returning to the raid. Add a heap-size safety valve. A/B: hitch count and p99.9 after looting.

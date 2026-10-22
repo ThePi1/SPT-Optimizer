@@ -7,7 +7,7 @@
   "targets": {
     ".NETStandard,Version=v2.1": {},
     ".NETStandard,Version=v2.1/": {
-      "SPTOptimizer.Profiler/0.3.0": {
+      "SPTOptimizer.Profiler/0.3.1": {
         "runtime": {
           "SPTOptimizer.Profiler.dll": {}
         }
@@ -15,7 +15,7 @@
     }
   },
   "libraries": {
-    "SPTOptimizer.Profiler/0.3.0": {
+    "SPTOptimizer.Profiler/0.3.1": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

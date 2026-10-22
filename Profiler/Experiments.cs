@@ -72,7 +72,7 @@ namespace SPTOptimizer.Profiler
             "DeclutterSolid",              // optimizations plugin trade-offs ON: "Declutter small objects" + "Declutter medium objects" (collider-bearing clutter meshes hidden, colliders kept)
             // Batch 4 (2026-10-20, SPT 4.1.6 / Fika 2.4.6, headless client)
             "ObservedArmsReducedRate",     // optimizations plugin trade-off ON: far/off-screen observed players' arms animators at the configured reduced rate
-            "ScopeHalfRate",               // while an optic is rendering, the scope camera renders every other frame (the lens keeps the last image). Measure while scoped in.
+            "ScopeHalfRate",               // optimizations plugin trade-off ON: "Scope camera at reduced rate" (configured interval and turn rule). Measure while scoped in.
         };
 
         // Graphics experiments: (GraphicsSettingsClass field, value). Applied via IGameSetting.ObjectValue, which runs
@@ -138,14 +138,15 @@ namespace SPTOptimizer.Profiler
             HarmonyLib.AccessTools.TypeByName("SPTOptimizer.Optimizations.Api")?.GetProperty("ObservedArmsLod");
         private static bool _savedArmsLod;
 
-        private static Camera _scopeCamera; // the optic camera we switched off, so the next frame or Revert re-enables it
-        private static bool _scopeOffByUs;
+        private static readonly System.Reflection.PropertyInfo ScopeRateSwitch =
+            HarmonyLib.AccessTools.TypeByName("SPTOptimizer.Optimizations.Api")?.GetProperty("ScopeReducedRate");
+        private static bool _savedScopeRate;
 
         private static bool IsGfx(int id) => id >= FirstGfx && GfxChanges.ContainsKey(Names[id]);
 
         private static bool Available(int id) =>
             (id != ShadowProxyCullingOff || CullingSwitch != null) && ((id != BatchedOverlaps && id != BatchedOverlapsOff) || OverlapsSwitch != null) &&
-            (id != RunawayGuardOff || GuardSwitch != null) && ((id != FadedLightCulling && id != FadedLightCullingOff) || FadedLightsSwitch != null) && (id != BotAnimHalfRate || AnimLodSwitch != null) && (id != Declutter || DeclutterSwitch != null) && (id != DeclutterSolid || (DeclutterSwitch != null && DeclutterMediumSwitch != null)) && (id != ObservedArmsReducedRate || ArmsLodSwitch != null) &&
+            (id != RunawayGuardOff || GuardSwitch != null) && ((id != FadedLightCulling && id != FadedLightCullingOff) || FadedLightsSwitch != null) && (id != BotAnimHalfRate || AnimLodSwitch != null) && (id != Declutter || DeclutterSwitch != null) && (id != DeclutterSolid || (DeclutterSwitch != null && DeclutterMediumSwitch != null)) && (id != ObservedArmsReducedRate || ArmsLodSwitch != null) && (id != ScopeHalfRate || ScopeRateSwitch != null) &&
             (id != AllOptimizationsOff || (CullingSwitch != null && OverlapsSwitch != null && GuardSwitch != null)) &&
             (!IsGfx(id) || Singleton<EFT.Settings.SettingsManager>.Instantiated);
 
@@ -226,7 +227,7 @@ namespace SPTOptimizer.Profiler
 
         private static System.Reflection.PropertyInfo[] ForceOnSwitches(int id) =>
             id == BatchedOverlaps ? new[] { OverlapsSwitch } : id == FadedLightCulling ? new[] { FadedLightsSwitch } : id == BotAnimHalfRate ? new[] { AnimLodSwitch } :
-            id == Declutter ? new[] { DeclutterSwitch } : id == ObservedArmsReducedRate ? new[] { ArmsLodSwitch } : id == DeclutterSolid ? new[] { DeclutterSwitch, DeclutterMediumSwitch } : new System.Reflection.PropertyInfo[0];
+            id == Declutter ? new[] { DeclutterSwitch } : id == ObservedArmsReducedRate ? new[] { ArmsLodSwitch } : id == ScopeHalfRate ? new[] { ScopeRateSwitch } : id == DeclutterSolid ? new[] { DeclutterSwitch, DeclutterMediumSwitch } : new System.Reflection.PropertyInfo[0];
 
         private static void HoldOffForceOnSwitches(List<int> ids)
         {
@@ -333,9 +334,6 @@ namespace SPTOptimizer.Profiler
                     // update), so override it here, in Update, right before Unity's next animation update.
                     ForceBotAnimatorCulling();
                     break;
-                case ScopeHalfRate:
-                    TickScope();
-                    break;
             }
             return switched;
         }
@@ -379,27 +377,6 @@ namespace SPTOptimizer.Profiler
                     _shotPhase = 5;
                     break;
             }
-        }
-
-        /// <summary>Update phase, before rendering. EFT shows/hides the optic camera with SetActive; we only toggle the
-        /// Camera component, so EFT's own state is untouched and the lens keeps showing the last rendered image.
-        /// Only a camera we switched off ourselves is ever switched back on: PiP-Disabler turns the optic camera off with
-        /// Camera.enabled (and clears its target texture), and re-enabling it would draw it onto the screen.</summary>
-        private static void TickScope()
-        {
-            if (_scopeOffByUs)
-            {
-                // skipped last frame: render this one
-                if (_scopeCamera != null) _scopeCamera.enabled = true;
-                _scopeOffByUs = false;
-                return;
-            }
-            var ocm = EFT.CameraControl.CameraManager.Instance.OpticCameraManager;
-            var cam = ocm?.Camera;
-            if (cam == null || !ocm.IsAnyOpticCameraRendering || !cam.enabled) return;
-            _scopeCamera = cam;
-            cam.enabled = false;
-            _scopeOffByUs = true;
         }
 
         private static void ForceBotAnimatorCulling()
@@ -465,7 +442,8 @@ namespace SPTOptimizer.Profiler
                         ArmsLodSwitch.SetValue(null, true);
                         break;
                     case ScopeHalfRate:
-                        TickScope();
+                        _savedScopeRate = (bool)ScopeRateSwitch.GetValue(null);
+                        ScopeRateSwitch.SetValue(null, true);
                         break;
                     case Declutter:
                     case DeclutterSolid:
@@ -593,9 +571,7 @@ namespace SPTOptimizer.Profiler
                     ArmsLodSwitch?.SetValue(null, _savedArmsLod);
                     break;
                 case ScopeHalfRate:
-                    if (_scopeOffByUs && _scopeCamera != null) _scopeCamera.enabled = true;
-                    _scopeOffByUs = false;
-                    _scopeCamera = null;
+                    ScopeRateSwitch?.SetValue(null, _savedScopeRate);
                     break;
                 case Declutter:
                 case DeclutterSolid:

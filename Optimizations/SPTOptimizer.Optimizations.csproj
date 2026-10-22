@@ -5,13 +5,17 @@
     <RootNamespace>SPTOptimizer.Optimizations</RootNamespace>
     <AssemblyName>SPTOptimizer.Optimizations</AssemblyName>
     <LangVersion>latest</LangVersion>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <!-- Game install to compile against and deploy to, override with: dotnet build -p:SptDir=... -->
     <SptDir Condition="'$(SptDir)' == ''">I:\Games\SPT-4-1-6-testing</SptDir>
     <Managed>$(SptDir)\EscapeFromTarkov_Data\Managed</Managed>
     <Deploy Condition="'$(Deploy)' == ''">true</Deploy>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\ConfigBuilder.cs" Link="Shared\ConfigBuilder.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="Assembly-CSharp" HintPath="$(Managed)\Assembly-CSharp.dll" Private="False" />

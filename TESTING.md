@@ -39,8 +39,8 @@ All captures are written to `<game>\SPTOptimizer\captures\<date-time>_<map>\`, w
 | **Plain capture** | F9 to start, F9 to stop | Baselines, play sessions, hitches |
 | **Instrumented capture** | F8 (instrument methods), then F9 | Per-method costs. Instrumentation inflates script slots, so don't compare its frame times with uninstrumented runs |
 | **A/B sequence** | F5. Runs Baseline and experiment steps (12 s each, 3 repeats, round-robin) chosen by *Sequence experiments* in the profiler config, with a screenshot check per step | Measuring one change while standing still. Report: the "A/B experiments" table in `summary.txt`, and `shots/diff.txt` |
-| **Auto-start A/B** | Profiler config *Auto-start A/B after raid start (s)* > 0 | Hands-off runs at a fixed time into the raid |
-| **Declutter report** | Optimizations config *Diagnostics → Declutter report* | Tuning the declutter keyword list. Writes `<game>\SPTOptimizer\declutter_<map>.txt` |
+| **Auto-start A/B** | Profiler config *2. A/B testing → Auto-start after raid start (s)* > 0 | Hands-off runs at a fixed time into the raid |
+| **Declutter report** | Optimizations config *4. Diagnostics → Declutter report* (advanced) | Tuning the declutter keyword list. Writes `<game>\SPTOptimizer\declutter_<map>.txt` |
 
 ### Rules that keep A/B results honest
 

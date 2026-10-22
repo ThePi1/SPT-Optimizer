@@ -12,7 +12,7 @@
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
-    "version": "0.3.0",
+    "version": "0.3.1",
     "restore": {
       "projectUniqueName": "C:\\Users\\Joey\\Documents\\WebsiteRepos\\SPT-Optimizer\\Optimizations\\SPTOptimizer.Optimizations.csproj",
       "projectName": "SPTOptimizer.Optimizations",

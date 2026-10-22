@@ -2,6 +2,17 @@
 
 The optimizations that came out of the profiling in [../FINDINGS.md](../FINDINGS.md). Each one can be switched off in ConfigurationManager (F12) under its own section, or in `BepInEx\config\com.sptoptimizer.optimizations.cfg`. `dotnet build -c Release` builds the plugin and copies it to `BepInEx\plugins\SPTOptimizer\`.
 
+## Settings menu (F12)
+
+Since 0.3.1 the settings are in four numbered sections. Fine-tuning values are *advanced*: tick **Advanced settings** at the top of the F12 window to see them. Values from the old section and key names carry over automatically on first start.
+
+| Section | Contents |
+| --- | --- |
+| **1. Optimizations (no visible change)** | GC policy, Shadow proxy culling, Faded light culling, Batched overlaps, Runaway move guard (all on). Advanced: their distances, margins and limits |
+| **2. Visual trade-offs** | Scope camera at reduced rate, Far player arms at reduced rate, Declutter small / medium objects, Object LOD bias override (all off). Advanced: the turn speed, near and on-screen distances, human players too |
+| **3. Experimental** | Distant bot animation at half rate (not recommended). Advanced: its distance, local bots too, BSG fast body animator |
+| **4. Diagnostics** (advanced) | Physics and corpse stats, Declutter report, Batched overlaps: validate |
+
 ## GC policy
 
 **Problem.** EFT turns the Mono garbage collector off at raid start. SPT's `MemoryCollectionPatch` turns it back on when the Inventory opens and never turns it off again. From the first loot onward, every collection is a 50–90 ms freeze in the middle of gameplay, because the heap is about 3 GB on Streets.
@@ -81,7 +92,7 @@ The flag is set by a Harmony postfix on `TarkovApplication.ConfigureApplication`
 ## Visible trade-offs (opt-in)
 
 ### Object LOD bias override
-*Trade-offs (visible) → Object LOD bias override*: 0 (default) uses the game's Object LOD setting, whose minimum is 2. The override substitutes its value where EFT applies the setting (`GameGraphicsClass.smethod_9`). EFT's per-camera scaling for optics still works on top of it.
+*2. Visual trade-offs → Object LOD bias override*: 0 (default) uses the game's Object LOD setting, whose minimum is 2. The override substitutes its value where EFT applies the setting (`GameGraphicsClass.smethod_9`). EFT's per-camera scaling for optics still works on top of it.
 - **At 1 (Streets):** −0.11 ms main thread, −0.37 ms render thread, −390 draw calls.
 - **Visible cost:** the screenshot check shows a real change on 1.9% of pixels. Mid-distance trees thin out and small debris ~40–60 m away disappears.
 - Only worth it if you're render-thread or GPU bound.
@@ -89,8 +100,23 @@ The flag is set by a Harmony postfix on `TarkovApplication.ConfigureApplication`
 ### Bot IK distance (removed in 0.3.0)
 Fika 2.4.4+ owns this value (`EFTHardSettings.CULL_GROUNDER`) through its own *IK Cull Distance* setting (default 40 m), and also updates IK only every third frame. Our option re-applied its own value, or the game's 90 m when set to 0, on every config change, which silently undid Fika's setting. Use Fika's setting instead. Measured on 4.0.13: 20 m saved 0.3–0.7 ms with 2–4 bots on screen at 20–90 m.
 
+### Scope camera at reduced rate (off by default)
+*2. Visual trade-offs → Scope camera at reduced rate*.
+
+**Problem.** EFT draws a magnified scope picture-in-picture: a second camera renders the whole scene again into the lens, with its own culling and draw calls. On a main-thread-bound client that's the largest single cost while scoped: ~1.8 ms looking at a nearby wall, ~3.5 ms down a street.
+
+**Change.** While a scope's camera is rendering, it renders only every Nth frame (*every N frames*, default 2); in between, the lens keeps showing the last image. The main view renders every frame. While the view turns faster than *full rate above turn speed* (default 15°/s), the scope renders every frame, because that's where the reduced rate would show as judder.
+
+**Measured (profiler step `ScopeHalfRate`, 4.1.6 headless client, Streets):** −1.77 ms per frame looking down a street, −0.89 ms indoors. No effect while you use a backup sight: EFT already switches the scope camera off then.
+
+**Visible effect:** the scope picture is less smooth, and on skipped frames it can lag the scope body slightly when the gun moves. Aim, recoil and hits don't use this image. Multiplayer-safe: it only changes your screen.
+
+**Implementation notes:** it toggles only the optic camera's `Camera` component; EFT shows and hides that camera with `SetActive`, which is left alone. It only ever switches back on a camera it switched off itself, so PiP-Disabler (which turns the camera off the same way) is never overridden. With PiP-Disabler it therefore only affects the scopes PiP-Disabler leaves to the game: variable, thermal and night vision.
+
+**Counters:** `scopeRate.skippedRenders`, `scopeRate.turningRenders` in the `Stats:` line.
+
 ### Far player arms at reduced rate (off by default, Fika clients only)
-*Trade-offs (visible) → Far player arms at reduced rate*.
+*2. Visual trade-offs → Far player arms at reduced rate*.
 
 **Problem.** Fika creates every observed player (on a client: every bot and every other human) with a manually updated arms animator, so `Player.ArmsUpdate` evaluates it every frame for each of them. On the 4.0.13 headless client that was ~0.47 ms for ~19 players, the largest single script cost left. (The weapon late transforms the research report pointed at cost only ~0.002 ms per frame in the 4.1.6 profile.)
 
@@ -107,7 +133,7 @@ Fika 2.4.4+ owns this value (`EFTHardSettings.CULL_GROUNDER`) through its own *I
 **Counters:** `observedArmsLod.skippedUpdates`, `observedArmsLod.catchUpUpdates` in the `Stats:` line. **Measure:** profiler step `ObservedArmsReducedRate`.
 
 ### Declutter small / medium objects (both off by default; a cleaner look, not a speed-up)
-Two switches under *Trade-offs (visible)*. Both are the idea of the [Simple-Declutter](https://github.com/gitTerebi/Simple-Declutter) mod (3.11 only, no license), reimplemented for 4.0.13 with stricter rules:
+Two switches under *2. Visual trade-offs*. Both are the idea of the [Simple-Declutter](https://github.com/gitTerebi/Simple-Declutter) mod (3.11 only, no license), reimplemented for 4.0.13 with stricter rules:
 
 | Setting | What stops being drawn | Gameplay | Measured (Streets, littered alley) |
 | --- | --- | --- | --- |
@@ -120,7 +146,7 @@ Two switches under *Trade-offs (visible)*. Both are the idea of the [Simple-Decl
 - **How it hides:** `Renderer.forceRenderingOff`, not deactivating the object. EFT's PerfectCulling occlusion system toggles GameObjects, LOD groups and `Renderer.enabled` itself, so those would be undone or fight it. Colliders are never disabled.
 - **Scan:** once per raid, 5 s after either switch is first on, time-sliced at 3 ms per frame (~1.9 s of work on Streets). Both switches then apply instantly, mid-raid too (3–15 ms).
 - **Fika:** it only changes what you see. With *medium* on, you can't see cover that is still there for everyone, including you.
-- **Tuning:** *Diagnostics → Declutter report* writes `SPTOptimizer\declutter_<map>.txt`. It lists matches per keyword (medium ones marked), why keyword matches were rejected, and the most common small visual-only objects that no keyword matched.
+- **Tuning:** *4. Diagnostics → Declutter report* (advanced) writes `SPTOptimizer\declutter_<map>.txt`. It lists matches per keyword (medium ones marked), why keyword matches were rejected, and the most common small visual-only objects that no keyword matched.
 - **Profiler steps:** `Declutter` (small) and `DeclutterSolid` (small + medium).
 
 ## Gameplay trade-offs (opt-in)
@@ -130,7 +156,7 @@ Two switches under *Trade-offs (visible)*. Both are the idea of the [Simple-Decl
 
 **Since 0.3.0** it applies only to bots on a Fika client. There, Fika writes each observed bot's position from the host's snapshots every frame (`ObservedPlayer.ManualStateUpdate`), so root motion moves nothing and the shortfall can't slow them down. *Half rate: local bots too* (advanced) brings back the old behaviour for bots simulated on your own PC; not recommended. Never on the headless host. Fika's `ObservedPlayer.LateUpdate` doesn't call EFT's `Player.LateUpdate`, so the speed and culling-mode restore hooks it directly. Likewise `ObservedMovementContext.ManualUpdate` doesn't call `MovementContext.ManualUpdate`, so the per-frame decision hooks both (fixed after the first batch 4 run, where the feature never triggered).
 
-*Trade-offs (gameplay) → Distant bot animation at half rate*, off by default.
+*3. Experimental → Distant bot animation at half rate*, off by default.
 
 **Problem.** Every bot's 22-layer body animator runs every frame, even off-screen, because EFT needs its root motion and footstep curve. That's ~65 µs per off-screen bot, ~1.3 ms for 20 bots.
 
@@ -146,9 +172,10 @@ Two switches under *Trade-offs (visible)*. Both are the idea of the [Simple-Decl
 | Option | Kind | Frame-time gain | What you give up | Status |
 | --- | --- | --- | --- | --- |
 | Fewer bots: SPT `SPT_Data\configs\bot.json` → `maxBotCap.tarkovstreets` (24) | gameplay | ~0.25–0.3 ms per bot (animation ~0.1, IK and per-player scripts ~0.08, AI ~0.02, movement and physics queries ~0.05); 24 → 16 ≈ −2 to −2.5 ms | fewer bots alive at once | server config; not changed |
-| Distant bot animation at half rate | visual on Fika clients (gameplay when local) | −0.7 to −1.1 ms self-hosted; Fika client to be measured (batch 4) | off-screen bots animate at half rate | option, Fika clients only |
+| Distant bot animation at half rate | visual on Fika clients (gameplay when local) | −0.7 to −1.1 ms self-hosted; **~0 on a Fika client** (−0.11 ms animation, +0.14 ms its own overhead) | off-screen bots animate at half rate | option, off; not worth it on clients |
+| IK distance 40 → 20 m (Fika setting) | visual | −0.08 ms with ~1 bot at 20–40 m on screen | stiffer feet and weapons on bots at 20–40 m | keep Fika's 40 m |
 | Far player arms at reduced rate | visual | −0.31 ms on a headless client (24 bots) | distant weapon handling less smooth | option, Fika clients only |
-| Scope camera at half rate | visual | −1.77 ms while scoped (profiler step `ScopeHalfRate`) | the scope image updates at half the frame rate | measured, not an option yet |
+| Scope camera at reduced rate | visual | −0.9 to −1.8 ms while scoped (profiler step `ScopeHalfRate`) | the scope picture updates at half the frame rate | option, off |
 | IK distance 20–40 m | visual | 0.3–0.7 ms with bots on screen (4.0.13) | distant bots' foot IK | Fika's *IK Cull Distance* (our option removed) |
 | Object LOD bias 1 | visual | −0.11 ms main, −0.37 ms render thread | trees thin out and debris vanishes at 40–60 m | option |
 | Overall visibility 400 (game setting) | visual | to be measured (batch 3) | far skyline cut off | setting |
@@ -193,6 +220,7 @@ None of these patches a method SPT-Optimizer patches, and none changes a value i
 | [PerformanceScope](https://github.com/PJ-568/spt-performance-scope) | the scope camera's render resolution; optional in-scope bloom/aberration/fisheye off, mip bias | GPU-side. Our client is main-thread bound even when scoped (12.7 ms main vs ~8.5 ms GPU), so expect little |
 | [Dynamic External Resolution (DERP)](https://github.com/Shibatsui/SPT-Dynamic-External-Resolution) | the main camera's render scale or DLSS/FSR mode while aiming an optic | GPU-side, as above. References SPT's DLLs: SPT 4.1.6 may flag an older build as outdated. Conflicts with the profiler's `GfxRender*` steps |
 | [PiP-Disabler](https://github.com/Fiodorwellfme/PiP-Disabler) | replaces the scope camera with a zoomed main camera for fixed-magnification optics (variable, thermal and NV scopes stay vanilla); raises `QualitySettings.lodBias` by magnification while aiming | Removes the scope camera's second culling and render pass, the main-thread cost the profiler's `ScopeHalfRate` measured (−1.77 ms at half rate). Our *Object LOD bias override*, if set, is restored by it after aiming. Visible-player checks use the zoomed main camera, which is what the scope shows |
+| [Tarkov DLSS 4.5](https://github.com/Lacyway/TarkovDLSS45) | a preloader patch to `Unity.Postprocessing.Runtime.dll` that replaces the `EDLSSPreset` choices with J, K, L, M; you swap in the DLSS 4.5 `nvngx_dlss.dll` (the 4.1.6 install ships 310.2.1) | No overlap with anything here. GPU-side like the resolution mods: it trades GPU time for image quality, not main-thread time. Set the in-game preset to J or K before installing: `Graphics.ini` stores `"DLSSPreset": "Default"`, which the patch removes |
 
 Measure with the profiler with these mods off, or note which were on: they change what a scoped capture contains.
 
@@ -213,6 +241,6 @@ This decides whether a corpse-settle cap or a BTR physics fix is worth building.
 ## How to verify
 
 1. **Shadow proxy culling, performance:** stand still somewhere busy on Streets and press **F5** (profiler A/B sequence). It now includes a `ShadowProxyCullingOff` step. In `summary.txt`, that step's delta versus Baseline is the optimization's gain (it should be positive, about +1 ms).
-2. **Shadow proxy culling, visuals:** walk a route and watch shadows near and far, including at a low sun angle if possible. Switch *Shadow proxy culling → Enabled* off and on in F12 at the same spot to compare. Watch for shadows that pop in or out at about 100 m.
-4. **Fast body animator:** one Streets raid with *Experimental → BSG fast body animator* on, one with it off, each with a game restart in between. In each, stand at the same spot and press **F9** for about 60 s. With it on, also check that bots walk, run, aim and reload normally, that you hear their footsteps as they approach, and that LogOutput.log has no new exceptions.
-3. **GC policy:** do two similar Streets raids of 5+ minutes, looting several times, each recorded with **F9** (or *Auto capture raids*): one with *GC policy → Enabled* on, one off. Compare frames over 50 ms after the first loot, and the collections listed in `summary.txt`. With the policy on, collections should only happen while the inventory is open.
+2. **Shadow proxy culling, visuals:** walk a route and watch shadows near and far, including at a low sun angle if possible. Switch *1. Optimizations → Shadow proxy culling* off and on in F12 at the same spot to compare. Watch for shadows that pop in or out at about 100 m.
+4. **Fast body animator:** one Streets raid with *3. Experimental → BSG fast body animator* (advanced) on, one with it off, each with a game restart in between. In each, stand at the same spot and press **F9** for about 60 s. With it on, also check that bots walk, run, aim and reload normally, that you hear their footsteps as they approach, and that LogOutput.log has no new exceptions.
+3. **GC policy:** do two similar Streets raids of 5+ minutes, looting several times, each recorded with **F9** (or *Auto capture raids*): one with *1. Optimizations → GC policy* on, one off. Compare frames over 50 ms after the first loot, and the collections listed in `summary.txt`. With the policy on, collections should only happen while the inventory is open.
