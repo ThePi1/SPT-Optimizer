@@ -96,9 +96,14 @@ namespace SPTOptimizer.Optimizations
                 prefix: new HarmonyMethod(typeof(BotAnimLod), nameof(OnStateMovePrefix)));
             // Fika's ObservedPlayer.LateUpdate replaces Player.LateUpdate without calling it, so MovementContext.
             // AnimatorStatesLateUpdate never runs for observed players: undo our changes from there instead.
+            // Likewise ObservedMovementContext.ManualUpdate replaces MovementContext.ManualUpdate without calling it.
             if (Fika.Present)
+            {
                 harmony.Patch(AccessTools.Method(Fika.ObservedPlayerType, "LateUpdate"),
                     prefix: new HarmonyMethod(typeof(BotAnimLod), nameof(ObservedLateUpdatePrefix)));
+                harmony.Patch(AccessTools.Method(AccessTools.TypeByName("Fika.Core.Main.ObservedClasses.ObservedMovementContext"), nameof(MovementContext.ManualUpdate)),
+                    postfix: new HarmonyMethod(typeof(BotAnimLod), nameof(ManualUpdatePostfix)));
+            }
         }
 
         private static bool Qualifies(Player p) =>

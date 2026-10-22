@@ -865,6 +865,24 @@ Checked the research report's recommendations against the decompiled Fika 2.4.6 
 
 Test steps: TESTING.md, batch 4.
 
+## 2026-10-22: Batch 4 results, 4.1.6 headless client (captures `20261022-092607` … `094904`)
+
+Runs from before the startup fix (`20261022-0906`…`0910`) are invalid: the Optimizations plugin died in `Awake` (a config key with an apostrophe), so every optimization was off.
+
+Main A/B (`092607`, Streets, standing, 24 bots alive, ~3 visible at 70 m+, 4 repeats):
+
+| Step | Δ frame time | Spread | Notes |
+| --- | --- | --- | --- |
+| ObservedArmsReducedRate | **−0.31 ms** | 0.09 | all of it in Update (−0.30); ~1,400 arms evaluations skipped per second |
+| AllOptimizationsOff | **+1.27 ms** | 0.38 | the default-on optimizations are still worth ~1.3 ms on a headless client (cull +0.55, render +0.28) |
+| BotAnimHalfRate | +0.15 ms | 0.87 | noise: **the feature never ran** (no `botAnimLod.*` counters). Fika's `ObservedMovementContext.ManualUpdate` overrides `MovementContext.ManualUpdate` without calling it, so the hook never fired for observed bots. Fixed: it now also hooks the override. To re-measure |
+
+Scope (`093533`, variable scope zoomed in, 4 repeats): **ScopeHalfRate −1.77 ms** (spread 0.25) while scoped: camera cull −0.76, render −0.60, −990 draw calls. The scope camera is a second full scene render; at 12.7 ms scoped baseline it's the largest single cost found on the client so far. Candidate for an opt-in option (the lens image would update at half the frame rate).
+
+IK distance: inconclusive. Both dedicated captures (`094755`, `094904`) ran at 20 m, and the 40 m captures were play clips from other views. Fika applies *IK Cull Distance* only at startup and when the setting changes, so the profiler's `IkDistance20` step can A/B it within one run. Census: most bots were 70 m+ and off screen, where IK doesn't run at either distance.
+
+Census detail: off-screen observed bots already have all renderers forced off and both animators on `CullUpdateTransforms` (arms animator component disabled; Fika updates it by hand). So Unity already skips their transform writes; half rate can only save the state-machine evaluation.
+
 ## Next
 0. Done and verified: GC policy (no gameplay collections), shadow proxy culling (−0.6 to −1.0 ms). Culling visual check: passed in clear weather. Still open: a `GcOn` A/B step to measure the per-frame cost of an enabled GC, far vertex lights as an optimization (≈ −0.25 to −0.35 ms cull, needs a visual check), and then the main-thread script and animation costs (Player.LateUpdate, Animators).
 1. **GC policy (first optimization):** keep SPT's collection while the inventory is open, but turn the GC back off when returning to the raid. Add a heap-size safety valve. A/B: hitch count and p99.9 after looting.

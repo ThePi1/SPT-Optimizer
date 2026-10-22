@@ -102,6 +102,8 @@ Fika 2.4.4+ owns this value (`EFTHardSettings.CULL_GROUNDER`) through its own *I
 
 **Visible effect:** distant players' weapon handling (reloads, weapon switches) looks less smooth; its sounds can start a frame late.
 
+**Measured (4.1.6 headless client, Streets, 24 bots, 4 repeats):** −0.31 ms per frame (spread 0.09), all in Update.
+
 **Counters:** `observedArmsLod.skippedUpdates`, `observedArmsLod.catchUpUpdates` in the `Stats:` line. **Measure:** profiler step `ObservedArmsReducedRate`.
 
 ### Declutter small / medium objects (both off by default; a cleaner look, not a speed-up)
@@ -126,7 +128,7 @@ Two switches under *Trade-offs (visible)*. Both are the idea of the [Simple-Decl
 ### Distant bot animation at half rate (experimental; since 0.3.0 Fika clients only)
 **Measured (Streets self-hosted, 5 repeats, 4.0.13):** −0.72 to −1.09 ms per frame. **Problem there:** Unity's animator delivers ~20% less root motion when it catches up two frames in one update, so affected off-screen bots moved ~20–25% slower (run 1.9 vs 2.45 m/s). Details in FINDINGS.md.
 
-**Since 0.3.0** it applies only to bots on a Fika client. There, Fika writes each observed bot's position from the host's snapshots every frame (`ObservedPlayer.ManualStateUpdate`), so root motion moves nothing and the shortfall can't slow them down. *Half rate: local bots too* (advanced) brings back the old behaviour for bots simulated on your own PC; not recommended. Never on the headless host. Fika's `ObservedPlayer.LateUpdate` doesn't call EFT's `Player.LateUpdate`, so the speed and culling-mode restore hooks it directly.
+**Since 0.3.0** it applies only to bots on a Fika client. There, Fika writes each observed bot's position from the host's snapshots every frame (`ObservedPlayer.ManualStateUpdate`), so root motion moves nothing and the shortfall can't slow them down. *Half rate: local bots too* (advanced) brings back the old behaviour for bots simulated on your own PC; not recommended. Never on the headless host. Fika's `ObservedPlayer.LateUpdate` doesn't call EFT's `Player.LateUpdate`, so the speed and culling-mode restore hooks it directly. Likewise `ObservedMovementContext.ManualUpdate` doesn't call `MovementContext.ManualUpdate`, so the per-frame decision hooks both (fixed after the first batch 4 run, where the feature never triggered).
 
 *Trade-offs (gameplay) → Distant bot animation at half rate*, off by default.
 
@@ -145,7 +147,8 @@ Two switches under *Trade-offs (visible)*. Both are the idea of the [Simple-Decl
 | --- | --- | --- | --- | --- |
 | Fewer bots: SPT `SPT_Data\configs\bot.json` → `maxBotCap.tarkovstreets` (24) | gameplay | ~0.25–0.3 ms per bot (animation ~0.1, IK and per-player scripts ~0.08, AI ~0.02, movement and physics queries ~0.05); 24 → 16 ≈ −2 to −2.5 ms | fewer bots alive at once | server config; not changed |
 | Distant bot animation at half rate | visual on Fika clients (gameplay when local) | −0.7 to −1.1 ms self-hosted; Fika client to be measured (batch 4) | off-screen bots animate at half rate | option, Fika clients only |
-| Far player arms at reduced rate | visual | to be measured (batch 4); the arms animator costs ~0.47 ms on the headless client | distant weapon handling less smooth | option, Fika clients only |
+| Far player arms at reduced rate | visual | −0.31 ms on a headless client (24 bots) | distant weapon handling less smooth | option, Fika clients only |
+| Scope camera at half rate | visual | −1.77 ms while scoped (profiler step `ScopeHalfRate`) | the scope image updates at half the frame rate | measured, not an option yet |
 | IK distance 20–40 m | visual | 0.3–0.7 ms with bots on screen (4.0.13) | distant bots' foot IK | Fika's *IK Cull Distance* (our option removed) |
 | Object LOD bias 1 | visual | −0.11 ms main, −0.37 ms render thread | trees thin out and debris vanishes at 40–60 m | option |
 | Overall visibility 400 (game setting) | visual | to be measured (batch 3) | far skyline cut off | setting |
@@ -180,6 +183,18 @@ Fika splits the raid between machines:
 - With empty *required* and *optional* lists (the default), every mod is allowed. If the lists are in use, add `com.sptoptimizer.optimizations` (and `com.sptoptimizer.profiler`) to *optional*.
 - Every machine must run the identical build, or the hash check fails.
 - The headless host benefits from the GC policy, batched overlaps and the runaway guard. The Fika wiki advises against declutter-type mods on the headless; they'd do nothing there anyway, because it barely renders.
+
+## Other performance mods (checked 2026-10-22 against their source)
+
+None of these patches a method SPT-Optimizer patches, and none changes a value it relies on. All three are client-only; leave them off the headless.
+
+| Mod | What it changes | Notes |
+| --- | --- | --- |
+| [PerformanceScope](https://github.com/PJ-568/spt-performance-scope) | the scope camera's render resolution; optional in-scope bloom/aberration/fisheye off, mip bias | GPU-side. Our client is main-thread bound even when scoped (12.7 ms main vs ~8.5 ms GPU), so expect little |
+| [Dynamic External Resolution (DERP)](https://github.com/Shibatsui/SPT-Dynamic-External-Resolution) | the main camera's render scale or DLSS/FSR mode while aiming an optic | GPU-side, as above. References SPT's DLLs: SPT 4.1.6 may flag an older build as outdated. Conflicts with the profiler's `GfxRender*` steps |
+| [PiP-Disabler](https://github.com/Fiodorwellfme/PiP-Disabler) | replaces the scope camera with a zoomed main camera for fixed-magnification optics (variable, thermal and NV scopes stay vanilla); raises `QualitySettings.lodBias` by magnification while aiming | Removes the scope camera's second culling and render pass, the main-thread cost the profiler's `ScopeHalfRate` measured (−1.77 ms at half rate). Our *Object LOD bias override*, if set, is restored by it after aiming. Visible-player checks use the zoomed main camera, which is what the scope shows |
+
+Measure with the profiler with these mods off, or note which were on: they change what a scoped capture contains.
 
 ## Diagnostics
 

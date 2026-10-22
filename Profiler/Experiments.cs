@@ -138,7 +138,8 @@ namespace SPTOptimizer.Profiler
             HarmonyLib.AccessTools.TypeByName("SPTOptimizer.Optimizations.Api")?.GetProperty("ObservedArmsLod");
         private static bool _savedArmsLod;
 
-        private static Camera _scopeCamera; // the optic camera we switch on and off, so Revert can re-enable it
+        private static Camera _scopeCamera; // the optic camera we switched off, so the next frame or Revert re-enables it
+        private static bool _scopeOffByUs;
 
         private static bool IsGfx(int id) => id >= FirstGfx && GfxChanges.ContainsKey(Names[id]);
 
@@ -381,19 +382,24 @@ namespace SPTOptimizer.Profiler
         }
 
         /// <summary>Update phase, before rendering. EFT shows/hides the optic camera with SetActive; we only toggle the
-        /// Camera component, so EFT's own state is untouched and the lens keeps showing the last rendered image.</summary>
+        /// Camera component, so EFT's own state is untouched and the lens keeps showing the last rendered image.
+        /// Only a camera we switched off ourselves is ever switched back on: PiP-Disabler turns the optic camera off with
+        /// Camera.enabled (and clears its target texture), and re-enabling it would draw it onto the screen.</summary>
         private static void TickScope()
         {
-            var ocm = EFT.CameraControl.CameraManager.Instance.OpticCameraManager;
-            var cam = ocm?.Camera;
-            if (cam == null) return;
-            if (!ocm.IsAnyOpticCameraRendering)
+            if (_scopeOffByUs)
             {
-                if (!cam.enabled) cam.enabled = true;
+                // skipped last frame: render this one
+                if (_scopeCamera != null) _scopeCamera.enabled = true;
+                _scopeOffByUs = false;
                 return;
             }
+            var ocm = EFT.CameraControl.CameraManager.Instance.OpticCameraManager;
+            var cam = ocm?.Camera;
+            if (cam == null || !ocm.IsAnyOpticCameraRendering || !cam.enabled) return;
             _scopeCamera = cam;
-            cam.enabled = (Time.frameCount & 1) == 0;
+            cam.enabled = false;
+            _scopeOffByUs = true;
         }
 
         private static void ForceBotAnimatorCulling()
@@ -587,7 +593,8 @@ namespace SPTOptimizer.Profiler
                     ArmsLodSwitch?.SetValue(null, _savedArmsLod);
                     break;
                 case ScopeHalfRate:
-                    if (_scopeCamera != null) _scopeCamera.enabled = true;
+                    if (_scopeOffByUs && _scopeCamera != null) _scopeCamera.enabled = true;
+                    _scopeOffByUs = false;
                     _scopeCamera = null;
                     break;
                 case Declutter:
