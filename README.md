@@ -31,7 +31,7 @@ Targets **SPT 4.1.6 / Fika 2.4.6 (EFT 0.16.9.40743, Unity 2022.3.43f1, Mono, DX1
 | All of the above together | | −1.57 ms (+12%) self-hosted; −1.1 to −1.3 ms on a headless client |
 | Declutter small / medium objects | off | ~0 ms (a visual preference) |
 | Half-rate off-screen bot animation | off; since 0.3.0 Fika clients only | −0.7 to −1.1 ms self-hosted, where bots moved ~20% slower; on a Fika client their position comes from the host (gain not yet measured) |
-| Far players' arms at reduced rate (0.3.0) | off; Fika clients only | not yet measured (targets ~0.47 ms of arms animator work) |
+| Far player arms at reduced rate (0.3.0) | off; Fika clients only | not yet measured (targets ~0.47 ms of arms animator work) |
 
 Outside the mod:
 - **Borderless instead of exclusive fullscreen:** −3.5 ms on a headless client (exclusive adds a ~4 ms present wait).

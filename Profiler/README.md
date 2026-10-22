@@ -117,7 +117,7 @@ Optimization switches:
 - `BatchedOverlaps` forces batched overlaps on. That's a no-op now that it's on by default.
 - `Declutter` turns *Declutter small objects* on. `DeclutterSolid` turns both *Declutter small objects* and *Declutter medium objects* on (collider-bearing clutter meshes hidden, colliders kept). Either switch that's on in the config is held off for the sequence so Baseline measures them off. To keep the scan out of the measured steps, turn on *Diagnostics → Declutter report*: that runs the scan 5 s into the raid even while both are off.
 - `BotAnimHalfRate` turns *Distant bot animation at half rate* on. Since 0.3.0 it affects only observed bots on a Fika client, so run it on a headless-hosted raid.
-- `ObservedArmsReducedRate` turns *Far players' arms at reduced rate* on (Fika client only). Held off for the sequence like the others.
+- `ObservedArmsReducedRate` turns *Far player arms at reduced rate* on (Fika client only). Held off for the sequence like the others.
 - `ScopeHalfRate`: while an optic is rendering, the scope camera's `Camera` component is switched off every other frame (EFT shows and hides the optic camera with `SetActive`, which is left alone), so the lens shows each image for two frames. Measures the second camera's cost. **Run it scoped in for the whole sequence**, e.g. `Sequence experiments = ScopeHalfRate`; outside a scope it does nothing.
 
 The 4.1.6 decompile rules out two other cheap knobs from the research report: EFT already sets every layer's cull distance from the *Overall visibility* setting (`CameraManager.SetOverallVisibility`; measured by `GfxVisibility400`), and the Low shadow preset already uses fewer than 4 cascades.

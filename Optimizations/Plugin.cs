@@ -193,7 +193,7 @@ namespace SPTOptimizer.Optimizations
             _animLodLocal = Config.Bind("Trade-offs (gameplay)", "Half rate: local bots too", false,
                 new ConfigDescription("NOT RECOMMENDED. Also apply half rate to bots simulated on this PC (no Fika, or you are the Fika host). Unity's animator delivers ~20% less root motion on the catch-up, so those bots move ~20-25% slower while off-screen.",
                     null, new ConfigurationManagerAttributes { IsAdvanced = true }));
-            _armsLod = Config.Bind("Trade-offs (visible)", "Far players' arms at reduced rate", false,
+            _armsLod = Config.Bind("Trade-offs (visible)", "Far player arms at reduced rate", false,
                 "Fika clients only. The arms animator of bots that are off-screen, or on screen but far away, is evaluated every Nth frame and catches up in one step. Their shots come from the network, so hits and damage are unchanged; their weapon handling looks less smooth and its sounds can start up to N-1 frames late. Never while you aim down sights at them, never within the near distance, never on the headless host.");
             _armsLodHumans = Config.Bind("Trade-offs (visible)", "Arms reduced rate: human players too", false,
                 "Also apply it to other human players, not only bots.");
