@@ -79,6 +79,6 @@ Optional, on the headless itself: Fika's *Bot sleeping* on (fewer awake bots mea
 
 ## Archiving
 
-Copy captures, logs and configs into `data\<install-name>\` in this repo before an install is retired or replaced. [data/README.md](data/README.md) describes the layout. The 4.0.13 install is archived in `data\spt-4.0.13\`. Logs to grab, because they are overwritten on every game start:
+Copy captures, logs and configs into `data\<install-name>\` in this repo before an install is retired or replaced. The folder is git-ignored: captures run to gigabytes, logs contain IP addresses, and `reference/` is decompiled game code. Per install: `captures/`, `logs/`, `config/`, `game-settings/`, `build/` (the deployed DLLs), `reports/` and `reference/` (the decompile, for diffing when porting). The 4.0.13 install is archived in `data\spt-4.0.13\`. Logs to grab, because they are overwritten on every game start:
 - `BepInEx\LogOutput.log`
 - `%USERPROFILE%\AppData\LocalLow\Battlestate Games\EscapeFromTarkov\Player.log` and `Player-prev.log`

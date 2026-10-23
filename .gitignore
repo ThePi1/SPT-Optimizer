@@ -1,5 +1,4 @@
-data/*
-!data/README.md
+data/
 
 # Packaged release zips (uploaded to GitHub Releases, not committed)
 releases/

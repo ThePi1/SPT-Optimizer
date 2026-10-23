@@ -17,7 +17,7 @@ Targets **SPT 4.1.6 / Fika 2.4.6 (EFT 0.16.9.40743, Unity 2022.3.43f1, Mono, DX1
 | [PORTING.md](PORTING.md) | Checklist for moving to a new EFT/SPT/Fika version |
 | [reports/](reports/) | Research report: rendering and script techniques, Fika compatibility, headless offloading |
 | [research_notes/](research_notes/) | The source notes behind the report |
-| `data/` | Local only (git-ignored): archived captures, logs, configs, builds and the decompile. See [data/README.md](data/README.md) |
+| `data/` | Local only (git-ignored): archived captures, logs, configs, builds and the decompile. Layout in [TESTING.md](TESTING.md#archiving) |
 
 ## Results so far (Streets, 2026-10-19 to 2026-10-22)
 
