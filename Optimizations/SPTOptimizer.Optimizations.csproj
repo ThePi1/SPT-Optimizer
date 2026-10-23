@@ -5,7 +5,7 @@
     <RootNamespace>SPTOptimizer.Optimizations</RootNamespace>
     <AssemblyName>SPTOptimizer.Optimizations</AssemblyName>
     <LangVersion>latest</LangVersion>
-    <Version>0.3.1</Version>
+    <Version>0.4.0</Version>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <!-- Game install to compile against and deploy to, override with: dotnet build -p:SptDir=... -->
     <SptDir Condition="'$(SptDir)' == ''">I:\Games\SPT-4-1-6-testing</SptDir>
