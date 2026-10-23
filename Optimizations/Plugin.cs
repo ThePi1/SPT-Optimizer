@@ -19,6 +19,14 @@ namespace SPTOptimizer.Optimizations
             set { if (Instance != null) Instance.Culling.Enabled = value; }
         }
 
+        public static bool LodGroupCulling
+        {
+            get => Optimizations.LodGroupCulling.Enabled;
+            set => Optimizations.LodGroupCulling.Enabled = value;
+        }
+
+        public static int LodGroupsDisabled => Optimizations.LodGroupCulling.Disabled;
+
         public static bool GcPolicy
         {
             get => Instance != null && Instance.Gc.Enabled;
@@ -106,6 +114,7 @@ namespace SPTOptimizer.Optimizations
         private ConfigEntry<float> _cullShadowMult;
         private ConfigEntry<string> _cullLayers;
         private ConfigEntry<bool> _fastAnimator;
+        private ConfigEntry<bool> _lodGroups;
         private ConfigEntry<bool> _overlapsEnabled;
         private ConfigEntry<float> _overlapsMargin;
         private ConfigEntry<bool> _overlapsValidate;
@@ -149,6 +158,14 @@ namespace SPTOptimizer.Optimizations
             catch (System.Exception ex)
             {
                 Logger.LogError("Runaway move guard unavailable: " + ex);
+            }
+            try
+            {
+                LodGroupCulling.Install(new Harmony("com.sptoptimizer.optimizations.lodgroups"), Logger);
+            }
+            catch (System.Exception ex)
+            {
+                Logger.LogError("LOD group culling unavailable: " + ex);
             }
             try
             {
@@ -233,6 +250,8 @@ namespace SPTOptimizer.Optimizations
                 "The distance used is at least this multiple of the current shadow distance.", advanced: true);
             _cullLayers = c.Bind(Main, "Shadow proxy culling: layers", "Default,CullingMask,HighPolyCollider",
                 "Layers whose shadow-only renderers are managed (applies on next raid).", advanced: true);
+            _lodGroups = c.Bind(Main, "LOD group culling", true,
+                "Switch off LOD groups whose renderers are all hidden (by EFT's occlusion culling or by shadow proxy culling), and back on before they're shown again. Works with shadow proxy culling.");
             _fadedLights = c.Bind(Main, "Faded light culling", true,
                 "Switch off lights already faded to zero by distance.");
             _overlapsEnabled = c.Bind(Main, "Batched overlaps", true,
@@ -296,6 +315,7 @@ namespace SPTOptimizer.Optimizations
             Culling.Distance = _cullDistance.Value;
             Culling.ShadowDistanceMultiplier = _cullShadowMult.Value;
             Culling.Layers = _cullLayers.Value.Split(',');
+            LodGroupCulling.Enabled = _lodGroups.Value;
             RunawayMoveGuard.Enabled = _guardEnabled.Value;
             PhysicsDiag.Enabled = _physicsDiag.Value;
             LodBiasOverride.Value = _lodBias.Value;
@@ -328,6 +348,7 @@ namespace SPTOptimizer.Optimizations
         {
             Gc.Tick();
             Culling.Tick();
+            LodGroupCulling.Tick();
             Overlaps?.Tick();
             FadedLightCulling.Tick();
             BotAnimLod.Tick();

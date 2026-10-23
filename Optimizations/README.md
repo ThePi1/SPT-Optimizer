@@ -8,7 +8,7 @@ The settings are in four numbered sections. Fine-tuning values are *advanced*: t
 
 | Section | Contents |
 | --- | --- |
-| **1. Standard Optimizations** | Modify GC policy, Shadow proxy culling, Faded light culling, Batched overlaps, Runaway move guard (all on). Advanced: their distances, margins and limits |
+| **1. Standard Optimizations** | Modify GC policy, Shadow proxy culling, LOD group culling, Faded light culling, Batched overlaps, Runaway move guard (all on). Advanced: their distances, margins and limits |
 | **2. Extra Optimizations (potential visible impact)** | Scope camera at reduced rate, Far player arms at reduced rate, Declutter small / medium objects, Object LOD bias override (all off). Advanced: the turn speed, near and on-screen distances, human players too |
 | **3. Experimental / Other** | Distant bot animation at half rate (not recommended). Advanced: its distance, local bots too, BSG fast body animator |
 | **4. Diagnostics** (advanced) | Physics and corpse stats, Declutter report, Batched overlaps: validate |
@@ -33,6 +33,25 @@ The log shows each switch (`GC policy: ...`) and, for every inventory visit, the
 **Change.** About 5 s into a raid, the static ShadowsOnly renderers on the *Layers* list are bucketed into a 32 m grid. Whenever the camera moves 4 m, cells farther than the threshold are disabled and nearer cells re-enabled. Cells on the boundary are decided per renderer, by the distance to the nearest point of its bounds. The threshold is the larger of *Distance* (100 m) and 2.5 × the current shadow distance. Skinned meshes and anything under a Rigidbody are skipped, as are renderers the game disabled itself. EFT's far shadows (`DistantShadow`) are drawn from its own command buffer and don't use these renderers.
 
 **Expected.** About 1 ms per frame on Streets with no visual change. The first pass (about 160k renderers switched off) causes one hitch of a few hundred ms about 5 s after spawning.
+
+### LOD group culling (on by default)
+*1. Standard Optimizations → LOD group culling*. Works together with shadow proxy culling.
+
+**Problem.** Unity evaluates every enabled `LODGroup` for every camera each frame, whether or not any of its renderers is enabled. On Streets (4.1.6) ~108,000 of ~137,000 enabled LOD groups had **every renderer disabled**: their normal renderers hidden by Perfect Culling (EFT's baked occlusion culling), their shadow proxies by shadow proxy culling.
+
+**Upper bound measured** (profiler step `EmptyLodGroupsOff`, switching all of them off while standing still): **−0.86 ms per frame**, of which −0.54 ms camera culling; screenshot change 0.02% against a 0.03% noise floor.
+
+**Change.** A disabled `LODGroup` hides all of its renderers, so a group may only stay off while nothing wants to show them. Only groups whose renderers are all controlled by Perfect Culling bake groups or by shadow proxy culling are taken, because those two are what turn them back on, and both are hooked:
+- Perfect Culling switches bake groups in `PerfectCullingCrossSceneGroup.UpdateSwitchQueues`. A prefix switches the LOD groups of every bake group about to be shown back on first; a postfix switches off groups its deactivations left dark.
+- Shadow proxy culling switches a proxy's group on before re-enabling it, and checks the group after disabling it.
+- A slow sweep (100 groups per frame, a full pass every ~10 s) switches on any group of ours with a renderer something else showed (`lodGroupCulling.rescuedBySweep` in the `Stats:` line; this should stay near 0), and forgets groups EFT's autocull cells switched back on.
+- If the Perfect Culling hook ever throws, the feature switches itself off rather than stopping Perfect Culling.
+
+**Measured (2026-10-23, Streets, 4 repeats):** **−0.56 ms camera culling**, the full upper bound; frame −0.53 ms (noisier). ~108,000 of ~117,000 controlled groups switched off and held there while moving; two drives with no pop-in or missing objects, and the safety sweep never had to rescue a group.
+
+**Residual risk:** an object shown by something other than Perfect Culling or shadow proxy culling would stay hidden until the sweep finds it (up to ~10 s). None seen in testing.
+
+**Measure:** profiler step `LodGroupCulling`.
 
 ## Experimental: BSG fast body animator (off by default, needs a game restart)
 

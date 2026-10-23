@@ -28,7 +28,8 @@ Targets **SPT 4.1.6 / Fika 2.4.6 (EFT 0.16.9.40743, Unity 2022.3.43f1, Mono, DX1
 | Batched overlaps | on | −0.2 ms (self-hosted; nothing on a Fika client) |
 | Runaway move guard (parked BTR gunner) | on | up to −6 ms before the BTR arrives (self-hosted / host) |
 | Faded light culling | on | −0.24 ms |
-| All of the above together | | −1.57 ms (+12%) self-hosted; −1.1 to −1.3 ms on a headless client |
+| LOD group culling (0.3.1) | on | −0.56 ms camera culling (frame −0.5 ms) on a headless client |
+| All of the above except LOD group culling, together | | −1.57 ms (+12%) self-hosted; −1.1 to −1.3 ms on a headless client |
 | Declutter small / medium objects | off | ~0 ms (a visual preference) |
 | Half-rate off-screen bot animation | off; since 0.3.0 Fika clients only | −0.7 to −1.1 ms self-hosted, where bots moved ~20% slower; ~0 on a Fika client (its savings and overhead cancel) |
 | Far player arms at reduced rate (0.3.0) | off; Fika clients only | −0.31 ms on a headless client |

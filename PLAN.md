@@ -37,11 +37,11 @@ Things already spotted in the decompile:
 ### Open (identified, not built yet)
 
 Steady frame time:
-1. **Distance-banded disabling of static renderer clusters** (research rank 2). Camera culling is still ~1.3 ms on the headless client. Estimate −0.2 to −0.5 ms; the largest piece of work here. Must work with Perfect Culling and keep near shadow casters.
-2. **Far vertex lights off.** Estimated −0.25 to −0.35 ms of culling (4.0.13 profiler step `FarVertexLightsOff`); needs a visual check that no visible light disappears.
+1. **Static cluster culling** (research rank 2). The 4.1.6 census reframed it: only ~78 renderers beyond 200 m are visible, but ~108,000 of ~137,000 enabled LOD groups have every renderer disabled and Unity still evaluates them. Switching those off measured **−0.86 ms** (upper bound, `EmptyLodGroupsOff`). **Built (2026-10-23): *LOD group culling***, hooked into Perfect Culling's switch queues so a group is back on before its renderers are shown; **on by default since 2026-10-23**: −0.56 ms camera culling (the full upper bound), no pop-in in two drives.
+2. ~~Far vertex lights off~~ **Already covered** by *Faded light culling* (on by default since 2026-10-19): both measured −0.22 ms ×3 in batch 1, and the faded version has no visible change by design. Only ~196 lights remain enabled on Streets.
 3. **Arms reduced rate tuning.** Only every 2 frames, bots only, is measured (−0.31 ms). Every 3 frames and human players (squad raids) are untested.
-4. **Combine far shadow-proxy cells** with `Mesh.CombineMeshes`. Estimate −0.1 to −0.3 ms; needs EFT meshes to be readable at runtime (unverified).
-5. **Small script items**, each under ~0.2 ms: `Physics.autoSyncTransforms`, and `SkinnedMeshRenderer.updateWhenOffscreen`, which the census shows on for player hand meshes.
+4. **Combine far shadow-proxy cells** with `Mesh.CombineMeshes`. Estimate −0.1 to −0.3 ms; needs EFT meshes to be readable at runtime. **Investigating:** the census now reports how many distinct proxy meshes are readable and how many proxies are already static-batched.
+5. **Small script items: nothing to do.** `SkinnedMeshRenderer.updateWhenOffscreen` is on for exactly 1 of 303 skinned meshes (the local player's hands). EFT already turns `Physics.autoSyncTransforms` off in raid (`PhysicsExtensions.UpdateController.Enabled` sets `SyncTransformsControlledByUnity = false`); the census now prints the live value to confirm.
 
 Hitches and 1% lows (not investigated yet):
 

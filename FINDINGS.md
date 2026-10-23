@@ -903,6 +903,52 @@ The first repeat was during a firefight (Update 2.8–3.7 ms, p99 up to 20 ms); 
 - **IK distance 40 → 20 m: −0.08 ms** (spread 0.28) with about one bot in the 20–40 m band. Roughly 0.1 ms per on-screen bot at 20–40 m, the bots you're most likely fighting, so their stiffer feet and weapons would show. **Verdict: keep Fika's 40 m default.**
 - Play capture `20261022-124029` (F9, firefight): one 271 ms stall, almost all of it outside the player loop (`Loop.Gap` 255 ms, no GC), next to inventory-screen and icon-creation work; a game stall, not one of our features. The scope camera (`BaseOpticCamera`) shows up in most of the other worst frames.
 
+## 2026-10-22: Static cluster culling, far lights, mesh combining and script items (decompile and census, no new capture)
+
+- **Visible objects at distance are rare.** Census `20261022-124029` (Streets, shadow proxy culling on): enabled renderers by distance ~35,000 normal plus ~14,400 shadow proxies, but only **78 visible beyond 200 m**. Distance-culling visible clusters would trade visible pop-in for almost nothing.
+- **LOD groups are the remaining culling bulk.** 136,765 enabled LOD groups (124,309 cross-fade) against 48,161 enabled renderers that have a LOD group parent. Unity evaluates every enabled group per camera regardless. → *LOD group culling* (experimental, off): LOD groups made only of shadow proxies are switched off once all their proxies are disabled. To measure with the `LodGroupCulling` step; the scan logs how many groups qualify.
+- **Perfect Culling at runtime** (`PerfectCullingBakeGroup.Toggle`) sets `Renderer.enabled` on the occluded groups' renderers, toggles its proxies the opposite way, and EFT's `AutocullLODGroupCell` switches whole LOD groups. Anything this mod disables can be switched back on by the game, which is why LOD group culling only takes groups whose renderers it controls itself.
+- **Far vertex lights:** already covered by Faded light culling (batch 1, 2026-10-19): the same −0.22 ms with no visible change.
+- **`updateWhenOffscreen`:** 1 of 303 skinned meshes (the local player's hands). Nothing to gain.
+- **`Physics.autoSyncTransforms`:** EFT's `PhysicsExtensions.UpdateController.Enabled` setter turns it off (`SyncTransformsControlledByUnity = false`) and EFT syncs transforms itself before its queries. Nothing to gain; the census now prints the live value.
+- **Combining far proxies:** pending. The census now reports distinct proxy meshes, how many are readable, and how many proxies are already part of a static batch.
+
+## 2026-10-22: LOD group culling, first A/B (capture `20261022-192526`, Streets, 21 bots, 4 repeats)
+
+- **LodGroupCulling: no gain.** Camera cull 1.207 → 1.200 ms, frame +0.05 ms (spread 1.03, noise). Only **3,870 of 135,765** enabled LOD groups are made purely of shadow proxies; 3,634 of them were switched off.
+- **Census (same capture):** 137,142 enabled LOD groups, **107,942 with every renderer disabled**, 90,897 of them mixing proxies with normal renderers (the normal ones hidden by Perfect Culling). That pool is ~30× what the setting reached.
+- **Item 4, combining proxies: not feasible.** 173,614 shadow proxies use 13,076 distinct meshes, of which **12 are readable** (`Mesh.CombineMeshes` needs readable meshes); none are static-batched.
+- **Item 5 confirmed:** `Physics.autoSyncTransforms` is False in raid (`simulationMode` Script).
+- Next: measurement-only profiler step `EmptyLodGroupsOff` switches off **every** fully-disabled LOD group, the upper bound for this approach. Only if that gain is worth it does a Perfect-Culling-aware version (re-enable a group before Perfect Culling shows its renderers) get built.
+
+## 2026-10-23: Empty LOD groups, upper bound (capture `20261023-000234`, Streets, 18–22 bots, 4 repeats)
+
+| | Baseline | EmptyLodGroupsOff | Δ |
+| --- | --- | --- | --- |
+| Frame | 7.99 ms | 7.13 ms | **−0.86** (−0.93, −0.26, −1.19, −1.04 per repeat) |
+| Camera cull | 1.24 | 0.71 | **−0.54** |
+| Update / LateUpdate | | | −0.10 / −0.13 |
+| Screenshot change | 0.03% (noise floor) | 0.02% | none |
+
+106,546 of 136,690 enabled LOD groups switched off; switching them all costs 110–420 ms in one frame. Decompile: a disabled `LODGroup` hides all its renderers (EFT's `AutocullLODGroupCell` relies on that), and Perfect Culling shows and hides renderers by switching whole bake groups in `PerfectCullingCrossSceneGroup.UpdateSwitchQueues` (bounded per frame by `numActivationsPerVolume`; `PerfectCullingBakeGroup.IsEnabled` is AggressiveInlining, so its caller is the hook point; `FastArray.Dequeue` pops from the end). → *LOD group culling* rebuilt around that: groups whose renderers are all Perfect Culling or shadow-proxy controlled are switched off when empty and back on before Perfect Culling shows them; a slow sweep catches anything else. The proxy-only first version is replaced.
+
+## 2026-10-23: LOD group culling, first in-game test (captures `20261023-003006` A/B, `003343` play)
+
+- **A/B invalid for the feature, valid for the bound.** `EmptyLodGroupsOff` repeated the upper bound: **−0.82 ms** frame, −0.55 ms camera cull. `LodGroupCulling` measured ~0 because of a bug: the first scan switched off 107,766 groups, the next Baseline step switched them back on, and later steps never re-swept, so they ran with 0 off. Fixed: switching the feature on now re-runs the switch-off pass, 8,000 groups per frame.
+- **The hooks work.** In the play capture (feature on, driving around Streets) the off-count only grew from Perfect Culling deactivations (8,508 → 25,859; never the full ~108k, same bug). Perfect Culling switched groups back on ~35,000 times; **no pop-in or missing objects were seen**, and the safety sweep never had to rescue a group (`rescuedBySweep` absent).
+- Controlled groups: 116,652 of 136,685 (19,958 have a renderer outside Perfect Culling and shadow proxies); 210,164 bake groups mapped; scan 693 ms.
+
+## 2026-10-23: LOD group culling, fixed (captures `20261023-004405` A/B, `004743` play)
+
+| Step (4 repeats, Streets, 22 bots) | Δ frame | Δ camera cull | Per repeat |
+| --- | --- | --- | --- |
+| **LodGroupCulling** | **−0.53 ms** | **−0.56 ms** | +0.11, −0.95, −0.89, −0.37 |
+| EmptyLodGroupsOff (upper bound) | −1.08 ms | −0.57 ms | −1.23, −1.33, −1.09, −0.66 |
+
+- The feature now reaches the upper bound on camera culling (−0.56 vs −0.57 ms): **108,310 of 116,961** controlled groups switched off, the same set the bound switches (108,100). The frame delta is noisier; its first repeat includes the 8,000-groups-per-frame switch-off pass at the start of the step.
+- **Play (feature on, moving):** the off-count held at ~106,000–112,000. Perfect Culling switched ~16,000–20,000 groups on and as many off per 30 s, **no pop-in or missing objects seen** in two drives, and the safety sweep never rescued a group.
+- The 530 ms max in the A/B capture comes from the measurement step `EmptyLodGroupsOff`, which switches all groups in one frame; the feature itself spreads that over ~14 frames.
+
 ## Next
 
 The current open list (identified, not built yet) and what has been ruled out are in [PLAN.md](PLAN.md#open-identified-not-built-yet). Earlier lists in this file are kept as they were written.

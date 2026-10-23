@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SPTOptimizer.Optimizations")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("0.3.1.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("0.3.1+2879482680d1f8d586868fbbb660b10e8d02c382")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("0.3.1+eb5dc76ce69889b364a8d38a9e18861e99e11d4d")]
 [assembly: System.Reflection.AssemblyProductAttribute("SPTOptimizer.Optimizations")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SPTOptimizer.Optimizations")]
 [assembly: System.Reflection.AssemblyVersionAttribute("0.3.1.0")]

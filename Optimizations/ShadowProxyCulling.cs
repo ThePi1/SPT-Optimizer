@@ -74,7 +74,12 @@ namespace SPTOptimizer.Optimizations
             bool inRaid = Raid.InRaid(out _);
             if (!inRaid)
             {
-                if (_scanned || _raidSeenAt >= 0f) Clear(restore: false); // scene is being unloaded; nothing to restore
+                if (_scanned || _raidSeenAt >= 0f)
+                {
+                    // scene is being unloaded; nothing to restore
+                    Clear(restore: false);
+                    LodGroupCulling.Clear();
+                }
                 _raidSeenAt = -1f;
                 return;
             }
@@ -92,6 +97,7 @@ namespace SPTOptimizer.Optimizations
                 if (Time.realtimeSinceStartup - _raidSeenAt < ScanDelaySeconds) return;
                 Scan();
             }
+            if (LodGroupCulling.NeedsScan) LodGroupCulling.Scan(ProxyRenderers());
 
             var cam = Camera.main;
             if (cam == null) return;
@@ -144,6 +150,11 @@ namespace SPTOptimizer.Optimizations
             _log.LogInfo($"Shadow proxy culling: {_proxies.Length} static ShadowsOnly renderers in {_cells.Count} cells (scan {sw.ElapsedMilliseconds} ms), threshold {EffectiveDistance:0} m");
         }
 
+        private IEnumerable<Renderer> ProxyRenderers()
+        {
+            foreach (var p in _proxies) yield return p.Renderer;
+        }
+
         private void Evaluate(Vector3 pos, float dist)
         {
             var sw = Stopwatch.StartNew();
@@ -190,6 +201,7 @@ namespace SPTOptimizer.Optimizations
             if (enabled)
             {
                 if (!p.DisabledByUs) return 0;
+                LodGroupCulling.BeforeEnable(p.Renderer); // its LOD group, if switched off, must be on first
                 p.Renderer.enabled = true;
                 p.DisabledByUs = false;
                 _disabledCount--;
@@ -199,6 +211,7 @@ namespace SPTOptimizer.Optimizations
             p.Renderer.enabled = false;
             p.DisabledByUs = true;
             _disabledCount++;
+            LodGroupCulling.AfterDisable(p.Renderer);
             return 1;
         }
 

@@ -23,7 +23,7 @@ namespace SPTOptimizer.Profiler
             AnimCullCompletelyFar = 11, GcOn = 12, AreaLightDispatch = 13, BatchedOverlaps = 14, FirstGfx = 15, RunawayGuardOff = 26, BatchedOverlapsOff = 27, AllOptimizationsOff = 28,
             GfxShadowsLow = 29, IkDistance40 = 30, FadedLightCulling = 31, FadedLightCullingOff = 32,
             BotAnimHalfRate = 33, GfxVisibility400 = 34, Declutter = 35, DeclutterSolid = 36,
-            ObservedArmsReducedRate = 37, ScopeHalfRate = 38;
+            ObservedArmsReducedRate = 37, ScopeHalfRate = 38, LodGroupCulling = 39, EmptyLodGroupsOff = 40;
 
         public static readonly string[] Names =
         {
@@ -73,6 +73,8 @@ namespace SPTOptimizer.Profiler
             // Batch 4 (2026-10-20, SPT 4.1.6 / Fika 2.4.6, headless client)
             "ObservedArmsReducedRate",     // optimizations plugin trade-off ON: far/off-screen observed players' arms animators at the configured reduced rate
             "ScopeHalfRate",               // optimizations plugin trade-off ON: "Scope camera at reduced rate" (configured interval and turn rule). Measure while scoped in.
+            "LodGroupCulling",             // optimizations plugin ON: LOD groups made only of disabled shadow proxies switched off (no visible change by design)
+            "EmptyLodGroupsOff",           // MEASUREMENT ONLY: every enabled LOD group whose renderers are all disabled is switched off (upper bound for LOD group culling). If Perfect Culling re-enables a renderer meanwhile, its group shows every LOD level until the step ends: stand still.
         };
 
         // Graphics experiments: (GraphicsSettingsClass field, value). Applied via IGameSetting.ObjectValue, which runs
@@ -138,6 +140,12 @@ namespace SPTOptimizer.Profiler
             HarmonyLib.AccessTools.TypeByName("SPTOptimizer.Optimizations.Api")?.GetProperty("ObservedArmsLod");
         private static bool _savedArmsLod;
 
+        private static readonly System.Reflection.PropertyInfo LodGroupSwitch =
+            HarmonyLib.AccessTools.TypeByName("SPTOptimizer.Optimizations.Api")?.GetProperty("LodGroupCulling");
+        private static readonly System.Reflection.PropertyInfo LodGroupsDisabledCount =
+            HarmonyLib.AccessTools.TypeByName("SPTOptimizer.Optimizations.Api")?.GetProperty("LodGroupsDisabled");
+        private static bool _savedLodGroups;
+
         private static readonly System.Reflection.PropertyInfo ScopeRateSwitch =
             HarmonyLib.AccessTools.TypeByName("SPTOptimizer.Optimizations.Api")?.GetProperty("ScopeReducedRate");
         private static bool _savedScopeRate;
@@ -146,7 +154,7 @@ namespace SPTOptimizer.Profiler
 
         private static bool Available(int id) =>
             (id != ShadowProxyCullingOff || CullingSwitch != null) && ((id != BatchedOverlaps && id != BatchedOverlapsOff) || OverlapsSwitch != null) &&
-            (id != RunawayGuardOff || GuardSwitch != null) && ((id != FadedLightCulling && id != FadedLightCullingOff) || FadedLightsSwitch != null) && (id != BotAnimHalfRate || AnimLodSwitch != null) && (id != Declutter || DeclutterSwitch != null) && (id != DeclutterSolid || (DeclutterSwitch != null && DeclutterMediumSwitch != null)) && (id != ObservedArmsReducedRate || ArmsLodSwitch != null) && (id != ScopeHalfRate || ScopeRateSwitch != null) &&
+            (id != RunawayGuardOff || GuardSwitch != null) && ((id != FadedLightCulling && id != FadedLightCullingOff) || FadedLightsSwitch != null) && (id != BotAnimHalfRate || AnimLodSwitch != null) && (id != Declutter || DeclutterSwitch != null) && (id != DeclutterSolid || (DeclutterSwitch != null && DeclutterMediumSwitch != null)) && (id != ObservedArmsReducedRate || ArmsLodSwitch != null) && (id != ScopeHalfRate || ScopeRateSwitch != null) && (id != LodGroupCulling || LodGroupSwitch != null) &&
             (id != AllOptimizationsOff || (CullingSwitch != null && OverlapsSwitch != null && GuardSwitch != null)) &&
             (!IsGfx(id) || Singleton<EFT.Settings.SettingsManager>.Instantiated);
 
@@ -175,6 +183,8 @@ namespace SPTOptimizer.Profiler
         private static Renderer[] _sceneRenderers;
         private static readonly List<Renderer> DisabledRenderers = new List<Renderer>();
         private static readonly List<Light> DisabledLights = new List<Light>();
+        private static readonly List<LODGroup> DisabledLodGroups = new List<LODGroup>();
+        private static List<(LODGroup Group, Renderer[] Renderers)> _lodGroupRenderers;
         private static ShadowQuality _savedShadows;
         private static float _savedLodBias;
         private static float _savedCullGrounder;
@@ -227,7 +237,7 @@ namespace SPTOptimizer.Profiler
 
         private static System.Reflection.PropertyInfo[] ForceOnSwitches(int id) =>
             id == BatchedOverlaps ? new[] { OverlapsSwitch } : id == FadedLightCulling ? new[] { FadedLightsSwitch } : id == BotAnimHalfRate ? new[] { AnimLodSwitch } :
-            id == Declutter ? new[] { DeclutterSwitch } : id == ObservedArmsReducedRate ? new[] { ArmsLodSwitch } : id == ScopeHalfRate ? new[] { ScopeRateSwitch } : id == DeclutterSolid ? new[] { DeclutterSwitch, DeclutterMediumSwitch } : new System.Reflection.PropertyInfo[0];
+            id == Declutter ? new[] { DeclutterSwitch } : id == ObservedArmsReducedRate ? new[] { ArmsLodSwitch } : id == ScopeHalfRate ? new[] { ScopeRateSwitch } : id == LodGroupCulling ? new[] { LodGroupSwitch } : id == DeclutterSolid ? new[] { DeclutterSwitch, DeclutterMediumSwitch } : new System.Reflection.PropertyInfo[0];
 
         private static void HoldOffForceOnSwitches(List<int> ids)
         {
@@ -441,6 +451,13 @@ namespace SPTOptimizer.Profiler
                         _savedArmsLod = (bool)ArmsLodSwitch.GetValue(null);
                         ArmsLodSwitch.SetValue(null, true);
                         break;
+                    case EmptyLodGroupsOff:
+                        DisableEmptyLodGroups();
+                        break;
+                    case LodGroupCulling:
+                        _savedLodGroups = (bool)LodGroupSwitch.GetValue(null);
+                        LodGroupSwitch.SetValue(null, true);
+                        break;
                     case ScopeHalfRate:
                         _savedScopeRate = (bool)ScopeRateSwitch.GetValue(null);
                         ScopeRateSwitch.SetValue(null, true);
@@ -514,6 +531,8 @@ namespace SPTOptimizer.Profiler
                 case AllShadowsOnlyOff: return $": {DisabledRenderers.Count} renderers disabled";
                 case FarVertexLightsOff: return $": {DisabledLights.Count} lights disabled";
                 case AreaLightDispatch: return $": {AreaLightDispatcher.Count} AreaLight hooks replaced";
+                case LodGroupCulling: return $": {LodGroupsDisabledCount?.GetValue(null)} LOD groups off so far (the rest are switched off over the next frames)";
+                case EmptyLodGroupsOff: return $": {DisabledLodGroups.Count} of {_lodGroupRenderers?.Count ?? 0} enabled LOD groups switched off";
                 case IkDistance20:
                 case IkDistance40:
                 case IkOffBots: return $": CULL_GROUNDER {_savedCullGrounder} -> {EFTHardSettings.Instance.CULL_GROUNDER}";
@@ -572,6 +591,14 @@ namespace SPTOptimizer.Profiler
                     break;
                 case ScopeHalfRate:
                     ScopeRateSwitch?.SetValue(null, _savedScopeRate);
+                    break;
+                case LodGroupCulling:
+                    LodGroupSwitch?.SetValue(null, _savedLodGroups);
+                    break;
+                case EmptyLodGroupsOff:
+                    foreach (var g in DisabledLodGroups)
+                        if (g != null && !g.enabled) g.enabled = true;
+                    DisabledLodGroups.Clear();
                     break;
                 case Declutter:
                 case DeclutterSolid:
@@ -650,6 +677,29 @@ namespace SPTOptimizer.Profiler
             }
         }
 
+        private static void DisableEmptyLodGroups()
+        {
+            // The renderer lists are cached per raid (GetLODs allocates; the first call takes a few hundred ms).
+            if (_lodGroupRenderers == null || _lodGroupRenderers.Count == 0 || _lodGroupRenderers[0].Group == null)
+            {
+                _lodGroupRenderers = new List<(LODGroup, Renderer[])>();
+                foreach (var g in UnityEngine.Object.FindObjectsOfType<LODGroup>())
+                {
+                    if (!g.enabled) continue;
+                    _lodGroupRenderers.Add((g, g.GetLODs().SelectMany(l => l.renderers).Where(r => r != null).Distinct().ToArray()));
+                }
+            }
+            foreach (var (group, renderers) in _lodGroupRenderers)
+            {
+                if (group == null || !group.enabled || renderers.Length == 0) continue;
+                bool anyOn = false;
+                foreach (var r in renderers) if (r != null && r.enabled) { anyOn = true; break; }
+                if (anyOn) continue;
+                group.enabled = false;
+                DisabledLodGroups.Add(group);
+            }
+        }
+
         private static void DisableFarVertexLights(float minDistance)
         {
             Vector3 cp = CameraPos();
@@ -676,6 +726,7 @@ namespace SPTOptimizer.Profiler
             Revert();
             ReleaseHeldOff();
             _sceneRenderers = null;
+            _lodGroupRenderers = null;
         }
     }
 }

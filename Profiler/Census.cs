@@ -58,6 +58,7 @@ namespace SPTOptimizer.Profiler
             sb.AppendLine($"  asyncUpload timeSlice {QualitySettings.asyncUploadTimeSlice} ms buffer {QualitySettings.asyncUploadBufferSize} MB  streamingMipmaps {QualitySettings.streamingMipmapsActive} budget {QualitySettings.streamingMipmapsMemoryBudget} MB  textureLimit {QualitySettings.globalTextureMipmapLimit}");
             sb.AppendLine($"  vSync {QualitySettings.vSyncCount}  targetFrameRate {Application.targetFrameRate}  maxQueuedFrames {QualitySettings.maxQueuedFrames}  billboardsFaceCamera {QualitySettings.billboardsFaceCameraPosition}  terrainQualityOverrides {QualitySettings.terrainQualityOverrides}");
             sb.AppendLine($"  graphics jobs {SystemInfo.graphicsMultiThreaded}  renderingThreadingMode n/a  colorSpace {QualitySettings.activeColorSpace}  screen {Screen.width}x{Screen.height}");
+            sb.AppendLine($"  physics: autoSyncTransforms {Physics.autoSyncTransforms}  simulationMode {Physics.simulationMode}  reuseCollisionCallbacks {Physics.reuseCollisionCallbacks}  defaultSolverIterations {Physics.defaultSolverIterations}");
         }
 
         private static void Cameras(StringBuilder sb)
@@ -147,6 +148,12 @@ namespace SPTOptimizer.Profiler
             foreach (var g in enabled.Where(r => r.shadowCastingMode == ShadowCastingMode.ShadowsOnly).GroupBy(r => r.name).OrderByDescending(g => g.Count()).Take(15))
                 sb.AppendLine($"    {g.Count(),7}  {g.Key}  layer {LayerMask.LayerToName(g.First().gameObject.layer)}  e.g. {Path(g.First().transform)}");
             sb.AppendLine("  ShadowsOnly by layer: " + string.Join(", ", enabled.Where(r => r.shadowCastingMode == ShadowCastingMode.ShadowsOnly).GroupBy(r => LayerMask.LayerToName(r.gameObject.layer)).OrderByDescending(g => g.Count()).Take(8).Select(g => $"{g.Key}={g.Count()}")));
+            // Can far shadow proxies be merged into fewer meshes? Mesh.CombineMeshes needs readable meshes; static
+            // batching would already have merged them.
+            var proxies = rs.Where(r => r.shadowCastingMode == ShadowCastingMode.ShadowsOnly).ToArray();
+            var proxyMeshes = proxies.Select(r => r.GetComponent<MeshFilter>()?.sharedMesh).Where(m => m != null).ToArray();
+            var distinctProxyMeshes = proxyMeshes.Distinct().ToArray();
+            sb.AppendLine($"  ShadowsOnly renderers (active, enabled or not): {proxies.Length}; with a mesh {proxyMeshes.Length}, {distinctProxyMeshes.Length} distinct meshes, {distinctProxyMeshes.Count(m => m.isReadable)} of them readable; part of a static batch {proxies.Count(r => r.isPartOfStaticBatch)}; vertices (all instances) {proxyMeshes.Sum(m => (long)m.vertexCount)}");
             sb.AppendLine("  Renderers with a LODGroup parent vs without: " + enabled.Count(r => r.GetComponentInParent<LODGroup>() != null) + " / " + enabled.Count(r => r.GetComponentInParent<LODGroup>() == null));
             sb.AppendLine("  Visible renderers by layer:");
             foreach (var g in visible.GroupBy(r => r.gameObject.layer).OrderByDescending(g => g.Count()).Take(15))
@@ -215,6 +222,19 @@ namespace SPTOptimizer.Profiler
             var lods = UnityEngine.Object.FindObjectsOfType<LODGroup>().Where(l => l.enabled).ToArray();
             sb.AppendLine($"  {lods.Length} enabled LOD groups; fade modes: " + string.Join(", ", lods.GroupBy(l => l.fadeMode).Select(g => $"{g.Key}={g.Count()}")));
             if (lods.Length > 0) sb.AppendLine($"  LOD levels avg {lods.Average(l => (double)l.lodCount):0.0}; animateCrossFading {lods.Count(l => l.animateCrossFading)}");
+            // Unity evaluates every enabled LOD group per camera, whether or not any of its renderers is enabled.
+            int noRenderers = 0, allOff = 0, onlyShadowsOnly = 0, onlyShadowsOnlyAllOff = 0, mixed = 0;
+            foreach (var l in lods)
+            {
+                var rend = l.GetLODs().SelectMany(x => x.renderers).Where(r => r != null).Distinct().ToArray();
+                if (rend.Length == 0) { noRenderers++; continue; }
+                bool off = rend.All(r => !r.enabled);
+                bool so = rend.All(r => r.shadowCastingMode == ShadowCastingMode.ShadowsOnly);
+                if (off) allOff++;
+                if (so) { onlyShadowsOnly++; if (off) onlyShadowsOnlyAllOff++; }
+                else if (rend.Any(r => r.shadowCastingMode == ShadowCastingMode.ShadowsOnly)) mixed++;
+            }
+            sb.AppendLine($"  enabled groups with no renderers {noRenderers}; with every renderer disabled {allOff}; shadow-proxy-only {onlyShadowsOnly} (every renderer disabled: {onlyShadowsOnlyAllOff}); mixing proxies with normal renderers {mixed}");
         }
 
         private static void Particles(StringBuilder sb)
