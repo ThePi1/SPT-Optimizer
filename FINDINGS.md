@@ -904,9 +904,5 @@ The first repeat was during a firefight (Update 2.8–3.7 ms, p99 up to 20 ms); 
 - Play capture `20261022-124029` (F9, firefight): one 271 ms stall, almost all of it outside the player loop (`Loop.Gap` 255 ms, no GC), next to inventory-screen and icon-creation work; a game stall, not one of our features. The scope camera (`BaseOpticCamera`) shows up in most of the other worst frames.
 
 ## Next
-0. Done and verified: GC policy (no gameplay collections), shadow proxy culling (−0.6 to −1.0 ms). Culling visual check: passed in clear weather. Still open: a `GcOn` A/B step to measure the per-frame cost of an enabled GC, far vertex lights as an optimization (≈ −0.25 to −0.35 ms cull, needs a visual check), and then the main-thread script and animation costs (Player.LateUpdate, Animators).
-1. **GC policy (first optimization):** keep SPT's collection while the inventory is open, but turn the GC back off when returning to the raid. Add a heap-size safety valve. A/B: hitch count and p99.9 after looting.
-2. ~~Break down `FinishFrameRendering`~~ Done: 2.2 ms cull + 2.2 ms render, all native. Render-thread and GPU time measured: both have lots of headroom. Next: **live A/B toggles** in one session at a fixed spot: (a) disable ShadowsOnly renderers beyond N m, (b) disable all ShadowsOnly (upper bound), (c) shadows off (upper bound), (d) lodBias 2→1, (e) disable far ForceVertex lights. Each toggle is tagged in frames.csv so the analyzer can compare segments.
-3. **Player animation LOD:** try `CULL_GROUNDER`/`AnimatorCullDistance` at runtime, then `Player.LateUpdate`/Animator update-rate LOD for distant or off-screen players. Target: about 3.5 ms (Animators plus `Player.LateUpdate`).
-4. **Allocation attribution:** while GC is off, Mono used-size deltas per instrumented method show who allocates the 2.8 MB/s.
-5. Instrument async and coroutine continuations (`MoveNext` of compiler-generated state machines) to catch the `ScriptRunDelayedTasks` and coroutine spikes.
+
+The current open list (identified, not built yet) and what has been ruled out are in [PLAN.md](PLAN.md#open-identified-not-built-yet). Earlier lists in this file are kept as they were written.

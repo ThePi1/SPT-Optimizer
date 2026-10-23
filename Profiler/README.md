@@ -8,7 +8,7 @@ A BepInEx plugin that records per-frame timing in EFT (SPT 4.0.13) without a Uni
 
 ## Settings menu (F12)
 
-Since 0.3.1 the settings are in four numbered sections; values from the old names carry over automatically. Fine-tuning values are *advanced* (tick **Advanced settings** to see them).
+The settings are in four numbered sections. Fine-tuning values are *advanced* (tick **Advanced settings** to see them).
 
 | Section | Everyday | Advanced |
 | --- | --- | --- |

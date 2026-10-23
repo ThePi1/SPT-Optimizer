@@ -60,68 +60,66 @@ namespace SPTOptimizer.Profiler
             string pluginDir = Path.GetDirectoryName(Info.Location);
             string gameDir = BepInEx.Paths.GameRootPath;
 
-            // The F12 menu, in display order; fine-tuning values are advanced. Entries renamed in 0.3.x carry their old
-            // values over (see ConfigBuilder).
-            var c = new ConfigBuilder(Config, Logger);
+            // The F12 menu, in display order; fine-tuning values are advanced.
+            var c = new ConfigBuilder(Config);
             const string Capture = "1. Capture";
             const string Ab = "2. A/B testing";
             const string Methods = "3. Method timing";
             const string Params = "4. Experiment parameters";
 
             _captureKey = c.Bind(Capture, "Toggle capture", new KeyboardShortcut(KeyCode.F9),
-                "Start or stop recording frame data to a capture folder.", was: "Hotkeys/Toggle capture");
+                "Start/stop recording frame data to a capture folder.");
             _autoCaptureRaids = c.Bind(Capture, "Auto capture raids", false,
-                "Start a capture when a raid starts and stop it when the raid ends.", was: "Capture/Auto capture raids");
+                "Start a capture when a raid starts and stop it when the raid ends.");
             _censusKey = c.Bind(Capture, "Scene census", new KeyboardShortcut(KeyCode.F7),
-                "Write a snapshot of cameras, lights, renderers, animators and players. Causes a short hitch.", advanced: true, was: "Hotkeys/Scene census");
+                "Write a snapshot of cameras, lights, renderers, animators and players. Causes a short hitch.", advanced: true);
             _censusOnStop = c.Bind(Capture, "Scene census at capture stop", true,
-                "Write census.txt into the capture folder when a capture stops.", advanced: true, was: "Capture/Scene census at capture stop");
+                "Write census.txt into the capture folder when a capture stops.", advanced: true);
             _perSubsystem = c.Bind(Capture, "Per-subsystem PlayerLoop timing", true,
-                "Time every PlayerLoop subsystem (about 100 markers) instead of just the top-level phases.", advanced: true, was: "Capture/Per-subsystem PlayerLoop timing");
+                "Time every PlayerLoop subsystem (about 100 markers) instead of just the top-level phases.", advanced: true);
             _recordCounters = c.Bind(Capture, "Record Unity counters and markers", true,
-                "Record every Unity profiler counter and marker that works in a release player (draw calls, culling and shadow timings, ...).", advanced: true, was: "Capture/Record Unity counters and markers");
+                "Record every Unity profiler counter and marker that works in a release player (draw calls, culling and shadow timings, ...).", advanced: true);
             _outputDir = c.Bind(Capture, "Output folder", Path.Combine(gameDir, "SPTOptimizer", "captures"),
-                "Where captures are written.", advanced: true, was: "Capture/Output folder");
+                "Where captures are written.", advanced: true);
             _keepBinary = c.Bind(Capture, "Keep frames.bin", false,
-                "Keep the raw binary next to the CSV.", advanced: true, was: "Capture/Keep frames.bin");
+                "Keep the raw binary next to the CSV.", advanced: true);
 
             _sequenceKey = c.Bind(Ab, "Run A/B sequence", new KeyboardShortcut(KeyCode.F5),
-                "Start or stop the A/B sequence: Baseline and the listed experiments alternate, each held for the step length. Starts a capture if none is running. Stand still.", was: "Experiments/Run A/B sequence");
+                "Start or stop the A/B sequence: Baseline and the listed experiments alternate, each held for the step length. Starts a capture if none is running. Stand still.");
             _sequenceNames = c.Bind(Ab, "Sequence experiments", "BatchedOverlaps",
-                "Comma-separated experiments the sequence runs. Optimization switches: AllOptimizationsOff, ShadowProxyCullingOff, FadedLightCullingOff, BatchedOverlapsOff, RunawayGuardOff, ObservedArmsReducedRate, ScopeHalfRate (scoped in), BotAnimHalfRate, Declutter, DeclutterSolid. Animation: IkDistance20, IkDistance40, IkOffBots. Graphics: GfxShadowsLow, GfxVisibility400, GfxRender50, GfxPostFxOff, ... (full list in Profiler/README.md). Empty = all.", was: "Experiments/Sequence experiments");
+                "Comma-separated experiments the sequence runs. Optimization switches: AllOptimizationsOff, ShadowProxyCullingOff, FadedLightCullingOff, BatchedOverlapsOff, RunawayGuardOff, ObservedArmsReducedRate, ScopeHalfRate (scoped in), BotAnimHalfRate, Declutter, DeclutterSolid. Animation: IkDistance20, IkDistance40, IkOffBots. Graphics: GfxShadowsLow, GfxVisibility400, GfxRender50, GfxPostFxOff, ... (full list in Profiler/README.md). Empty = all.");
             _repeats = c.Bind(Ab, "Sequence repeats", 1,
-                "How many times the sequence cycles through its experiments. 4 gives a usable spread.", was: "Experiments/Sequence repeats");
+                "How many times the sequence cycles through its experiments. 4 gives a usable spread.");
             _holdSeconds = c.Bind(Ab, "Step length (s)", 15f,
-                "How long each step of the sequence lasts. The report skips the first 3 s of each step.", was: "Experiments/Hold seconds");
+                "How long each step of the sequence lasts. The report skips the first 3 s of each step.");
             _screenshots = c.Bind(Ab, "Screenshot every step", true,
-                "Take screenshots in the first seconds of every step (the part the report skips) and compare experiment and Baseline shots at the end (shots/diff.txt).", was: "Batch testing/Screenshot every step");
+                "Take screenshots in the first seconds of every step (the part the report skips) and compare experiment and Baseline shots at the end (shots/diff.txt).");
             _autoAbDelay = c.Bind(Ab, "Auto-start after raid start (s)", 0f,
-                "If > 0, start the sequence (with a capture) automatically this many seconds after entering a raid, once per raid. A 10 s warning shows first: be standing still by then.", was: "Batch testing/Auto-start A/B after raid start (s)");
+                "If > 0, start the sequence (with a capture) automatically this many seconds after entering a raid, once per raid. A 10 s warning shows first: be standing still by then.");
             _autoAbMaps = c.Bind(Ab, "Auto-start maps", "TarkovStreets",
-                "Comma-separated location ids where the auto-start applies (empty = all maps).", was: "Batch testing/Auto-start maps");
+                "Comma-separated location ids where the auto-start applies (empty = all maps).");
             _roundRobin = c.Bind(Ab, "Round-robin layout", true,
-                "Run several experiments between Baseline steps (order rotated every repeat) instead of a Baseline before every experiment. Each experiment is compared with the nearest Baseline on either side.", advanced: true, was: "Batch testing/Round-robin layout");
+                "Run several experiments between Baseline steps (order rotated every repeat) instead of a Baseline before every experiment. Each experiment is compared with the nearest Baseline on either side.", advanced: true);
             _baselineEvery = c.Bind(Ab, "Experiments per Baseline", 2,
-                "Round-robin: how many experiment steps run between Baseline steps.", advanced: true, was: "Batch testing/Experiments per Baseline");
+                "Round-robin: how many experiment steps run between Baseline steps.", advanced: true);
             _experimentKey = c.Bind(Ab, "Cycle experiment", new KeyboardShortcut(KeyCode.F6),
-                "Manually switch to the next experiment in the full list (wraps to Baseline). Changes visuals or behaviour until switched back.", advanced: true, was: "Experiments/Cycle experiment");
+                "Manually switch to the next experiment in the full list (wraps to Baseline). Changes visuals or behaviour until switched back.", advanced: true);
 
             _instrumentKey = c.Bind(Methods, "Toggle method instrumentation", new KeyboardShortcut(KeyCode.F8),
-                "Patch or unpatch the methods listed in the targets file, to time them per frame. Patching freezes the game for a few seconds.", was: "Hotkeys/Toggle method instrumentation");
+                "Patch or unpatch the methods listed in the targets file, to time them per frame. Patching freezes the game for a few seconds.");
             _instrumentOnCapture = c.Bind(Methods, "Collect method timings during capture", true,
-                "When methods are instrumented, record their timings during captures (methods.csv).", advanced: true, was: "Capture/Collect method timings during capture");
+                "When methods are instrumented, record their timings during captures (methods.csv).", advanced: true);
             _targetsFile = c.Bind(Methods, "Targets file", Path.Combine(BepInEx.Paths.ConfigPath, "SPTOptimizer.Profiler.targets.txt"),
-                "Which methods are instrumented. Created from default-targets.txt if missing.", advanced: true, was: "Instrumentation/Targets file");
+                "Which methods are instrumented. Created from default-targets.txt if missing.", advanced: true);
 
             _farShadowsOnly = c.Bind(Params, "FarShadowsOnlyOff distance", 100f,
-                "Shadow-only renderers farther than this (m) from the camera are disabled.", advanced: true, was: "Experiments/FarShadowsOnlyOff distance");
+                "Shadow-only renderers farther than this (m) from the camera are disabled.", advanced: true);
             _lodBias = c.Bind(Params, "LodBiasLow value", 1f,
-                "QualitySettings.lodBias used by LodBiasLow (game default here: 2).", advanced: true, was: "Experiments/LodBiasLow value");
+                "QualitySettings.lodBias used by LodBiasLow (game default here: 2).", advanced: true);
             _farLights = c.Bind(Params, "FarVertexLightsOff distance", 50f,
-                "Non-shadow vertex lights farther than this (m) are disabled.", advanced: true, was: "Experiments/FarVertexLightsOff distance");
+                "Non-shadow vertex lights farther than this (m) are disabled.", advanced: true);
             _farAnim = c.Bind(Params, "AnimCullCompletelyFar distance", 60f,
-                "Bots farther than this (m) get fully culled animators in AnimCullCompletelyFar.", advanced: true, was: "Experiments/AnimCullCompletelyFar distance");
-            c.Finish();
+                "Bots farther than this (m) get fully culled animators in AnimCullCompletelyFar.", advanced: true);
             Experiments.Init(Logger);
             Screenshots.Init(this, Logger);
             Experiments.SequenceFinished += () =>

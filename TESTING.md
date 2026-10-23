@@ -60,6 +60,8 @@ No F8 and no F5. Compare by category: rendering, Update, LateUpdate, animation, 
 
 ### Batch 4: 4.1.6 baseline and Fika-client features (2026-10-20, v0.3.0)
 
+**Done 2026-10-22**; results in FINDINGS.md. The IK comparison was run inside one F5 sequence with the profiler's `IkDistance20` step instead of two raids: Fika applies *IK Cull Distance* only at startup and when the setting changes, so the step can override and restore it.
+
 All on the headless host, borderless, sunny Streets, at the same landmark. Install only `SPTOptimizer.Optimizations.dll` on the headless; nothing in this batch changes what it does.
 1. **Fika IK distance, two raids or a restart between them** (Fika's setting can't be switched by F5): F9 capture standing still for 60 s with *IK Cull Distance* 40 (default), then 15. Note `bots_alive`.
 2. **F5 round-robin**, profiler *Sequence experiments* = `ObservedArmsReducedRate, BotAnimHalfRate, AllOptimizationsOff`, 4–5 repeats. Both new switches stay off in the config; the sequence holds them off for Baseline. Stand still, view fixed.

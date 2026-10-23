@@ -4,13 +4,13 @@ The optimizations that came out of the profiling in [../FINDINGS.md](../FINDINGS
 
 ## Settings menu (F12)
 
-Since 0.3.1 the settings are in four numbered sections. Fine-tuning values are *advanced*: tick **Advanced settings** at the top of the F12 window to see them. Values from the old section and key names carry over automatically on first start.
+The settings are in four numbered sections. Fine-tuning values are *advanced*: tick **Advanced settings** at the top of the F12 window to see them.
 
 | Section | Contents |
 | --- | --- |
-| **1. Optimizations (no visible change)** | GC policy, Shadow proxy culling, Faded light culling, Batched overlaps, Runaway move guard (all on). Advanced: their distances, margins and limits |
-| **2. Visual trade-offs** | Scope camera at reduced rate, Far player arms at reduced rate, Declutter small / medium objects, Object LOD bias override (all off). Advanced: the turn speed, near and on-screen distances, human players too |
-| **3. Experimental** | Distant bot animation at half rate (not recommended). Advanced: its distance, local bots too, BSG fast body animator |
+| **1. Standard Optimizations** | Modify GC policy, Shadow proxy culling, Faded light culling, Batched overlaps, Runaway move guard (all on). Advanced: their distances, margins and limits |
+| **2. Extra Optimizations (potential visible impact)** | Scope camera at reduced rate, Far player arms at reduced rate, Declutter small / medium objects, Object LOD bias override (all off). Advanced: the turn speed, near and on-screen distances, human players too |
+| **3. Experimental / Other** | Distant bot animation at half rate (not recommended). Advanced: its distance, local bots too, BSG fast body animator |
 | **4. Diagnostics** (advanced) | Physics and corpse stats, Declutter report, Batched overlaps: validate |
 
 ## GC policy
@@ -92,7 +92,7 @@ The flag is set by a Harmony postfix on `TarkovApplication.ConfigureApplication`
 ## Visible trade-offs (opt-in)
 
 ### Object LOD bias override
-*2. Visual trade-offs → Object LOD bias override*: 0 (default) uses the game's Object LOD setting, whose minimum is 2. The override substitutes its value where EFT applies the setting (`GameGraphicsClass.smethod_9`). EFT's per-camera scaling for optics still works on top of it.
+*2. Extra Optimizations → Object LOD bias override*: 0 (default) uses the game's Object LOD setting, whose minimum is 2. The override substitutes its value where EFT applies the setting (`GameGraphicsClass.smethod_9`). EFT's per-camera scaling for optics still works on top of it.
 - **At 1 (Streets):** −0.11 ms main thread, −0.37 ms render thread, −390 draw calls.
 - **Visible cost:** the screenshot check shows a real change on 1.9% of pixels. Mid-distance trees thin out and small debris ~40–60 m away disappears.
 - Only worth it if you're render-thread or GPU bound.
@@ -101,7 +101,7 @@ The flag is set by a Harmony postfix on `TarkovApplication.ConfigureApplication`
 Fika 2.4.4+ owns this value (`EFTHardSettings.CULL_GROUNDER`) through its own *IK Cull Distance* setting (default 40 m), and also updates IK only every third frame. Our option re-applied its own value, or the game's 90 m when set to 0, on every config change, which silently undid Fika's setting. Use Fika's setting instead. Measured on 4.0.13: 20 m saved 0.3–0.7 ms with 2–4 bots on screen at 20–90 m.
 
 ### Scope camera at reduced rate (off by default)
-*2. Visual trade-offs → Scope camera at reduced rate*.
+*2. Extra Optimizations → Scope camera at reduced rate*.
 
 **Problem.** EFT draws a magnified scope picture-in-picture: a second camera renders the whole scene again into the lens, with its own culling and draw calls. On a main-thread-bound client that's the largest single cost while scoped: ~1.8 ms looking at a nearby wall, ~3.5 ms down a street.
 
@@ -116,7 +116,7 @@ Fika 2.4.4+ owns this value (`EFTHardSettings.CULL_GROUNDER`) through its own *I
 **Counters:** `scopeRate.skippedRenders`, `scopeRate.turningRenders` in the `Stats:` line.
 
 ### Far player arms at reduced rate (off by default, Fika clients only)
-*2. Visual trade-offs → Far player arms at reduced rate*.
+*2. Extra Optimizations → Far player arms at reduced rate*.
 
 **Problem.** Fika creates every observed player (on a client: every bot and every other human) with a manually updated arms animator, so `Player.ArmsUpdate` evaluates it every frame for each of them. On the 4.0.13 headless client that was ~0.47 ms for ~19 players, the largest single script cost left. (The weapon late transforms the research report pointed at cost only ~0.002 ms per frame in the 4.1.6 profile.)
 
@@ -133,7 +133,7 @@ Fika 2.4.4+ owns this value (`EFTHardSettings.CULL_GROUNDER`) through its own *I
 **Counters:** `observedArmsLod.skippedUpdates`, `observedArmsLod.catchUpUpdates` in the `Stats:` line. **Measure:** profiler step `ObservedArmsReducedRate`.
 
 ### Declutter small / medium objects (both off by default; a cleaner look, not a speed-up)
-Two switches under *2. Visual trade-offs*. Both are the idea of the [Simple-Declutter](https://github.com/gitTerebi/Simple-Declutter) mod (3.11 only, no license), reimplemented for 4.0.13 with stricter rules:
+Two switches under *2. Extra Optimizations*. Both are the idea of the [Simple-Declutter](https://github.com/gitTerebi/Simple-Declutter) mod (3.11 only, no license), reimplemented for 4.0.13 with stricter rules:
 
 | Setting | What stops being drawn | Gameplay | Measured (Streets, littered alley) |
 | --- | --- | --- | --- |
@@ -156,7 +156,7 @@ Two switches under *2. Visual trade-offs*. Both are the idea of the [Simple-Decl
 
 **Since 0.3.0** it applies only to bots on a Fika client. There, Fika writes each observed bot's position from the host's snapshots every frame (`ObservedPlayer.ManualStateUpdate`), so root motion moves nothing and the shortfall can't slow them down. *Half rate: local bots too* (advanced) brings back the old behaviour for bots simulated on your own PC; not recommended. Never on the headless host. Fika's `ObservedPlayer.LateUpdate` doesn't call EFT's `Player.LateUpdate`, so the speed and culling-mode restore hooks it directly. Likewise `ObservedMovementContext.ManualUpdate` doesn't call `MovementContext.ManualUpdate`, so the per-frame decision hooks both (fixed after the first batch 4 run, where the feature never triggered).
 
-*3. Experimental → Distant bot animation at half rate*, off by default.
+*3. Experimental / Other → Distant bot animation at half rate*, off by default.
 
 **Problem.** Every bot's 22-layer body animator runs every frame, even off-screen, because EFT needs its root motion and footstep curve. That's ~65 µs per off-screen bot, ~1.3 ms for 20 bots.
 
@@ -241,6 +241,6 @@ This decides whether a corpse-settle cap or a BTR physics fix is worth building.
 ## How to verify
 
 1. **Shadow proxy culling, performance:** stand still somewhere busy on Streets and press **F5** (profiler A/B sequence). It now includes a `ShadowProxyCullingOff` step. In `summary.txt`, that step's delta versus Baseline is the optimization's gain (it should be positive, about +1 ms).
-2. **Shadow proxy culling, visuals:** walk a route and watch shadows near and far, including at a low sun angle if possible. Switch *1. Optimizations → Shadow proxy culling* off and on in F12 at the same spot to compare. Watch for shadows that pop in or out at about 100 m.
-4. **Fast body animator:** one Streets raid with *3. Experimental → BSG fast body animator* (advanced) on, one with it off, each with a game restart in between. In each, stand at the same spot and press **F9** for about 60 s. With it on, also check that bots walk, run, aim and reload normally, that you hear their footsteps as they approach, and that LogOutput.log has no new exceptions.
-3. **GC policy:** do two similar Streets raids of 5+ minutes, looting several times, each recorded with **F9** (or *Auto capture raids*): one with *1. Optimizations → GC policy* on, one off. Compare frames over 50 ms after the first loot, and the collections listed in `summary.txt`. With the policy on, collections should only happen while the inventory is open.
+2. **Shadow proxy culling, visuals:** walk a route and watch shadows near and far, including at a low sun angle if possible. Switch *1. Standard Optimizations → Shadow proxy culling* off and on in F12 at the same spot to compare. Watch for shadows that pop in or out at about 100 m.
+4. **Fast body animator:** one Streets raid with *3. Experimental / Other → BSG fast body animator* (advanced) on, one with it off, each with a game restart in between. In each, stand at the same spot and press **F9** for about 60 s. With it on, also check that bots walk, run, aim and reload normally, that you hear their footsteps as they approach, and that LogOutput.log has no new exceptions.
+3. **GC policy:** do two similar Streets raids of 5+ minutes, looting several times, each recorded with **F9** (or *Auto capture raids*): one with *1. Standard Optimizations → Modify GC policy* on, one off. Compare frames over 50 ms after the first loot, and the collections listed in `summary.txt`. With the policy on, collections should only happen while the inventory is open.

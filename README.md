@@ -2,7 +2,7 @@
 
 Frame-time optimizations for Escape from Tarkov under SPT (single-player Tarkov) and Fika (co-op), shipped as BepInEx 5 / HarmonyX plugins. Every optimization can be toggled and is measured with an in-game A/B profiler before it's switched on by default.
 
-Targets **SPT 4.1.6 / Fika 2.4.6 (EFT 0.16.9.40743, Unity 2022.3.43f1, Mono, DX11)**. The measurements in FINDINGS.md were taken on SPT 4.0.13 / Fika 2.3.9 (EFT 0.16.9.40087); [PORTING.md](PORTING.md) covers what changed.
+Targets **SPT 4.1.6 / Fika 2.4.6 (EFT 0.16.9.40743, Unity 2022.3.43f1, Mono, DX11)**. FINDINGS.md has measurements from both SPT 4.0.13 / Fika 2.3.9 (EFT 0.16.9.40087, up to 2026-10-20) and SPT 4.1.6 (batch 4, 2026-10-22, on a headless client); [PORTING.md](PORTING.md) covers what changed between them. Open work and ruled-out ideas are listed in [PLAN.md](PLAN.md#open-identified-not-built-yet).
 
 ## What's in here
 
@@ -12,14 +12,14 @@ Targets **SPT 4.1.6 / Fika 2.4.6 (EFT 0.16.9.40743, Unity 2022.3.43f1, Mono, DX1
 | [Profiler/](Profiler/README.md) | `SPTOptimizer.Profiler` plugin: per-frame capture (F9), method instrumentation (F8), scene census (F7), automated A/B sequences with screenshot comparison (F5) |
 | [tools/analyze.py](tools/analyze.py) | Standalone analyzer for a capture's `frames.csv` (stdlib Python) |
 | [FINDINGS.md](FINDINGS.md) | Dated lab notebook: every measurement, A/B result and dead end, with capture names |
-| [PLAN.md](PLAN.md) | Plan of attack, status and parked items |
+| [PLAN.md](PLAN.md) | Plan of attack, status, open items and what has been ruled out |
 | [TESTING.md](TESTING.md) | Test environment, how to run each kind of test, and where the data goes |
 | [PORTING.md](PORTING.md) | Checklist for moving to a new EFT/SPT/Fika version |
 | [reports/](reports/) | Research report: rendering and script techniques, Fika compatibility, headless offloading |
 | [research_notes/](research_notes/) | The source notes behind the report |
 | `data/` | Local only (git-ignored): archived captures, logs, configs, builds and the decompile. See [data/README.md](data/README.md) |
 
-## Results so far (Streets, 2026-10-19/20)
+## Results so far (Streets, 2026-10-19 to 2026-10-22)
 
 | Optimization | Default | Measured gain |
 | --- | --- | --- |

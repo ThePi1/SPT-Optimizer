@@ -31,9 +31,35 @@ Things already spotted in the decompile:
 - 2026-10-20: All 4.0.13 test data archived in `data\spt-4.0.13\` (git-ignored). Moving to SPT 4.1.6 / Fika 2.4.6, which runs EFT 0.16.9.40743: still 0.16.9, with readable names in place of obfuscated ones.
 - 2026-10-20: Both plugins ported to SPT 4.1.6 (about 20 renamed hooks; mapping in PORTING.md) and deployed to `I:\Games\SPT-4-1-6-testing`. Next: baseline and re-run the A/B steps there. Steps are in [PORTING.md](PORTING.md); testing is in [TESTING.md](TESTING.md).
 - 2026-10-20: v0.3.0, research follow-ups checked against Fika 2.4.6 (FINDINGS.md). New opt-in Fika-client options: far players' arms animators at a reduced rate, and half-rate bot animation limited to observed bots (where position comes from the host). The bot IK distance option was removed because Fika owns that value. New profiler steps `ObservedArmsReducedRate` and `ScopeHalfRate`. Not yet measured: TESTING.md, batch 4. Next after that: distance-banded disabling of static renderer clusters, as its own change.
+- 2026-10-22: Batch 4 measured on the 4.1.6 headless client (FINDINGS.md): default optimizations still −1.27 ms; far player arms at reduced rate −0.31 ms; the scope camera costs ~1.8 ms (indoors) to ~3.5 ms (street) while scoped, half of it saved at half rate; half-rate bot body animation nets ~0 on clients; IK 20 m −0.08 ms. Two bugs found and fixed: a config key with an apostrophe killed the Optimizations plugin at startup, and Fika's `ObservedMovementContext.ManualUpdate` override bypassed the half-rate hook.
+- 2026-10-22: v0.3.1: *Scope camera at reduced rate* is a real opt-in option (every N frames, full rate while turning; never overrides PiP-Disabler). Both F12 menus reorganised into numbered sections with fine-tuning under Advanced settings. Compatibility with PerformanceScope, Dynamic External Resolution, PiP-Disabler and Tarkov DLSS 4.5 checked against their source (Optimizations/README.md).
 
-### Parked (flagged, revisit later)
-- **Half-rate distant bot animation:** −0.7 to −1.1 ms on Streets, but off-screen bots run ~20–25% slower. Unity's animator delivers ~20% less root motion when it catches up two frames in one update. Possible fixes: root-motion calibration from occasional full-rate samples, or half-rate only for **stationary** bots, where root motion doesn't matter (most off-screen bot time is idle). See FINDINGS.md, 2026-10-19 half-rate sections.
+### Open (identified, not built yet)
+
+Steady frame time:
+1. **Distance-banded disabling of static renderer clusters** (research rank 2). Camera culling is still ~1.3 ms on the headless client. Estimate −0.2 to −0.5 ms; the largest piece of work here. Must work with Perfect Culling and keep near shadow casters.
+2. **Far vertex lights off.** Estimated −0.25 to −0.35 ms of culling (4.0.13 profiler step `FarVertexLightsOff`); needs a visual check that no visible light disappears.
+3. **Arms reduced rate tuning.** Only every 2 frames, bots only, is measured (−0.31 ms). Every 3 frames and human players (squad raids) are untested.
+4. **Combine far shadow-proxy cells** with `Mesh.CombineMeshes`. Estimate −0.1 to −0.3 ms; needs EFT meshes to be readable at runtime (unverified).
+5. **Small script items**, each under ~0.2 ms: `Physics.autoSyncTransforms`, and `SkinnedMeshRenderer.updateWhenOffscreen`, which the census shows on for player hand meshes.
+
+Hitches and 1% lows (not investigated yet):
+
+6. **Firefight spikes.** Worst frames in fights show 8–11 ms `PostLateUpdate.UpdateAudio`, 10–12 ms script Update spikes, ~6 ms per Fika `CoopHandler.SpawnPlayer` on the client, and bullet-sound and gear coroutines.
+7. **Distant bot-vs-bot shots.** The client replays every bot shot; shots far from the player could play impact effects only.
+
+Headless side:
+
+8. **Fika *Bot sleeping* on the headless** (off by default): fewer awake bots, fewer snapshots and shots for clients to replay. Changes the raid; compare as its own pair of raids.
+9. **Host-to-client "bot importance" packet** (asleep, far, out of combat) to drive client-side LOD. Needs the mod on both sides.
+
+Built, not yet checked in game: *Scope camera at reduced rate* as a real option (the profiler step is measured; the turn-speed rule isn't), and the reorganised F12 menus.
+
+### Ruled out (measured)
+- **Half-rate bot body animation on Fika clients:** ~0 ms (saves 0.11 ms of animation, costs ~0.14 ms itself). Self-hosted it saves 0.7–1.1 ms but slows off-screen bots ~20–25%. Kept as an experimental option, off.
+- **IK distance 40 → 20 m:** −0.08 ms with ~1 bot at 20–40 m on screen; keep Fika's 40 m.
+- **Per-layer cull distances** (EFT already sets them from Overall visibility), **fewer shadow cascades** (the Low preset already uses fewer), **declutter as a speed-up** (~0 ms), **skipping the scope camera behind a backup sight** (EFT already does).
+- Not possible on this build: BatchRendererGroup, SRP Batcher, DX12-only graphics jobs, Burst.
 
 ## Phase 0: Measure reliably first
 
